@@ -1,5 +1,5 @@
 SetCompressor /SOLID lzma
-
+!include "nsProcess.nsh"
 !define KRB_URL "http://go.microsoft.com/fwlink/?LinkId=265291"
 
 ;--------------------------------
@@ -62,6 +62,12 @@ SetCompressor /SOLID lzma
 ;Installer Sections
 
 Section "Main Application" SecMain
+  ${nsProcess::FindProcess} "NiUI.exe" $R0
+  StrCmp $R0 0 0 +3
+     ${nsProcess::KillProcess} "NiUI.exe" $R0
+     Sleep 3000
+  ${nsProcess::Unload}
+
   SectionIn RO
   SetOutPath "$INSTDIR"
   File "GPL.txt"
@@ -90,9 +96,12 @@ Section "Main Application" SecMain
   ${If} ${RunningX64}
      CreateDirectory "$PROGRAMFILES64\Microsoft SDKs\Kinect\v1.6\Assemblies"
      CreateDirectory "$PROGRAMFILES32\Microsoft SDKs\Kinect\v1.6\Assemblies"
+     WriteRegStr HKLM "SOFTWARE\Microsoft\Kinect" "SDKInstallPath" "$PROGRAMFILES64\Microsoft SDKs\Kinect"
+     WriteRegStr HKLM "SOFTWARE\Wow6432Node\Microsoft\Kinect" "SDKInstallPath" "$PROGRAMFILES32\Microsoft SDKs\Kinect"
      ExecWait '$INSTDIR\Primesense Drivers\dpinst-amd64.exe /SW /LM'
   ${Else}
      CreateDirectory "$PROGRAMFILES\Microsoft SDKs\Kinect\v1.6\Assemblies"
+     WriteRegStr HKLM "SOFTWARE\Microsoft\Kinect" "SDKInstallPath" "$PROGRAMFILES\Microsoft SDKs\Kinect"
      ExecWait '$INSTDIR\Primesense Drivers\dpinst-x86.exe /SW /LM'
   ${EndIf}
   SetOutPath "$INSTDIR"
@@ -160,6 +169,12 @@ FunctionEnd
 ;Uninstaller Section
 
 Section "Uninstall"
+  ${nsProcess::FindProcess} "NiUI.exe" $R0
+  StrCmp $R0 0 0 +3
+     ${nsProcess::KillProcess} "NiUI.exe" $R0
+     Sleep 3000
+  ${nsProcess::Unload}
+
   ${If} ${RunningX64}
      ExecWait '$WINDIR\SysWoW64\regsvr32.exe /s /u "$INSTDIR\NiVirtualCamFilter.dll"'
   ${Else}
