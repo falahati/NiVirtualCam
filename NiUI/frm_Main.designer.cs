@@ -54,6 +54,7 @@
             this.btn_stopstart = new System.Windows.Forms.Button();
             this.l_copyright = new System.Windows.Forms.LinkLabel();
             this.notify = new System.Windows.Forms.NotifyIcon(this.components);
+            this.lbl_wait = new System.Windows.Forms.Label();
             ((System.ComponentModel.ISupportInitialize)(this.pb_image)).BeginInit();
             this.gb_depth.SuspendLayout();
             this.gb_color.SuspendLayout();
@@ -224,7 +225,6 @@
             // cb_smart
             // 
             this.cb_smart.AutoSize = true;
-            this.cb_smart.Enabled = false;
             this.cb_smart.Location = new System.Drawing.Point(6, 19);
             this.cb_smart.Name = "cb_smart";
             this.cb_smart.Size = new System.Drawing.Size(98, 17);
@@ -299,12 +299,25 @@
             this.notify.Text = "OpenNI Virtual Webcam Controller";
             this.notify.MouseDoubleClick += new System.Windows.Forms.MouseEventHandler(this.notify_MouseDoubleClick);
             // 
+            // lbl_wait
+            // 
+            this.lbl_wait.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D;
+            this.lbl_wait.Font = new System.Drawing.Font("Microsoft YaHei UI", 11.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.lbl_wait.ForeColor = System.Drawing.SystemColors.ControlDarkDark;
+            this.lbl_wait.Location = new System.Drawing.Point(404, 157);
+            this.lbl_wait.Name = "lbl_wait";
+            this.lbl_wait.Size = new System.Drawing.Size(164, 86);
+            this.lbl_wait.TabIndex = 13;
+            this.lbl_wait.Text = "Please wait ...";
+            this.lbl_wait.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            // 
             // frm_Main
             // 
             this.AcceptButton = this.btn_apply;
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(732, 417);
+            this.Controls.Add(this.lbl_wait);
             this.Controls.Add(this.l_copyright);
             this.Controls.Add(this.btn_stopstart);
             this.Controls.Add(this.gb_preview);
@@ -326,7 +339,6 @@
             this.Text = "OpenNI Virtual Webcam (NiVirtualCam) Configurations";
             this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.frm_Main_FormClosing);
             this.FormClosed += new System.Windows.Forms.FormClosedEventHandler(this.frm_Main_FormClosed);
-            this.Load += new System.EventHandler(this.frm_Main_Load);
             this.Shown += new System.EventHandler(this.frm_Main_Shown);
             ((System.ComponentModel.ISupportInitialize)(this.pb_image)).EndInit();
             this.gb_depth.ResumeLayout(false);
@@ -369,6 +381,7 @@
         private System.Windows.Forms.LinkLabel l_copyright;
         private System.Windows.Forms.NotifyIcon notify;
         private System.Windows.Forms.CheckBox cb_smart;
+        private System.Windows.Forms.Label lbl_wait;
     }
 }
 

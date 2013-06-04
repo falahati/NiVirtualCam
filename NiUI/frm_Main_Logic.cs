@@ -5,19 +5,27 @@ using System.Text;
 using System.Windows.Forms;
 using OpenNIWrapper;
 using System.Drawing;
+using System.Windows.Media.Media3D;
+using System.ComponentModel;
+using Vector2D = System.Windows.Vector;
 
 namespace NiUI
 {
     public partial class frm_Main
     {
-        bool isHD = false;
-        int iNoClient;
-        bool isIdle = true;
         VideoFrameRef.copyBitmapOptions renderOptions;
         Device currentDevice;
         VideoStream currentSensor;
         Bitmap bitmap;
         BitmapBroadcaster broadcaster;
+        NiTEWrapper.UserTracker uTracker;
+        NiTEWrapper.HandTracker hTracker;
+        bool isHD = false;
+        int iNoClient;
+        bool isIdle = true;
+        bool softMirror = false;
+        short ActiveUserId = 0;
+        RectangleF ActivePosition = new RectangleF(0, 0, 0, 0);
         public bool IsAutoRun { get; set; }
         private bool HandleError(OpenNI.Status status)
         {
@@ -33,18 +41,43 @@ namespace NiUI
             cb_device.Items.Clear();
             if (devices.Length == 0)
                 cb_device.Items.Add("None");
+            bool inList = false;
             for (int i = 0; i < devices.Length; i++)
+            {
                 cb_device.Items.Add(devices[i]);
+                if (devices[i].URI == NiUI.Properties.Settings.Default.DeviceURI)
+                    inList = true;
+            }
+            if (!inList)
+                NiUI.Properties.Settings.Default.DeviceURI = string.Empty;
             if (cb_device.SelectedIndex == -1)
                 cb_device.SelectedIndex = 0;
         }
-
+        void RegisterFilter()
+        {
+            string filterAddress = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName), "NiVirtualCamFilter.dll");
+            if (!System.IO.File.Exists(filterAddress))
+            {
+                MessageBox.Show("NiVirtualCamFilter.dll has not been found. Please reinstall this program.", "Fatal Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Environment.Exit(1);
+            }
+            try
+            {
+                System.Diagnostics.Process p = new System.Diagnostics.Process();
+                p.StartInfo = new System.Diagnostics.ProcessStartInfo(
+                    "regsvr32.exe", "/s \"" + filterAddress + "\"");
+                p.Start();
+                p.WaitForExit();
+            }
+            catch (Exception) { }
+        }
         void Init()
         {
             try
             {
                 broadcaster = new BitmapBroadcaster();
                 HandleError(OpenNI.Initialize());
+                NiTEWrapper.NiTE.Initialize();
                 OpenNI.onDeviceConnected += new OpenNI.DeviceConnectionStateChanged(OpenNI_onDeviceConnectionStateChanged);
                 OpenNI.onDeviceDisconnected += new OpenNI.DeviceConnectionStateChanged(OpenNI_onDeviceConnectionStateChanged);
                 OpenNI.onDeviceStateChanged += new OpenNI.DeviceStateChanged(OpenNI_onDeviceStateChanged);
@@ -88,7 +121,7 @@ namespace NiUI
                 {
                     cb_type.Items.Add("Depth");
                     gb_depth.Enabled = true;
-                    //cb_smart.Enabled = true;
+                    cb_smart.Enabled = true;
                 }
                 if (cb_type.Items.Count < 0)
                     cb_type.SelectedIndex = 0;
@@ -113,7 +146,7 @@ namespace NiUI
                 else
                 {
                     iNoClient++;
-                    if (iNoClient > 120 && !isIdle) // 2min of no data
+                    if (iNoClient > 60 && !isIdle) // 1min of no data
                     {
                         isIdle = true;
                         Stop(false);
@@ -159,6 +192,7 @@ namespace NiUI
             }
             catch (Exception) { }
         }
+
         void SaveSettings()
         {
             NiUI.Properties.Settings.Default.DeviceURI = "";
@@ -213,8 +247,14 @@ namespace NiUI
             }
             if (!isSameDevice)
             {
+                //if (uTracker != null && uTracker.isValid)
+                //    uTracker.Destroy();
+                //if (hTracker != null && hTracker.isValid)
+                //    hTracker.Destroy();
                 if (currentDevice != null && currentDevice.isValid)
                     currentDevice.Close();
+                //hTracker = null;
+                //uTracker = null;
                 currentDevice = null;
             }
             isIdle = true;
@@ -232,6 +272,7 @@ namespace NiUI
 
         bool Start()
         {
+            RegisterFilter();
             if (this.isIdle && broadcaster.hasServer())
             {
                 MessageBox.Show("Only one server is allowed.", "Multi-Server", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -266,7 +307,10 @@ namespace NiUI
                     return false;
                 }
             }
-            currentSensor.Stop();
+            else
+            {
+                currentSensor.Stop();
+            }
             VideoMode[] vmodes = currentSensor.SensorInfo.getSupportedVideoModes();
             VideoMode selectedVideoMode = null;
             switch (currentSensor.SensorInfo.getSensorType())
@@ -319,6 +363,7 @@ namespace NiUI
                 default:
                     break;
             }
+
             if (selectedVideoMode != null)
                 try
                 {
@@ -335,16 +380,31 @@ namespace NiUI
                 MessageBox.Show("No acceptable video mode found.", "Sensor Config", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return false;
             }
-            if (NiUI.Properties.Settings.Default.Mirroring)
+            softMirror = NiUI.Properties.Settings.Default.Mirroring;
+            //if (NiUI.Properties.Settings.Default.Mirroring)
+                //try
+                //{
+                //    if (currentSensor.Mirroring != cb_mirror.Checked)
+                //        currentSensor.Mirroring = cb_mirror.Checked;
+                //}
+                //catch (Exception ex)
+                //{
+                //    MessageBox.Show("Can not enable mirroring. " + ex.Message, "Sensor Config", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+                //}
+            if (NiUI.Properties.Settings.Default.SmartCam)
+            {
                 try
                 {
-                    if (currentSensor.Mirroring != cb_mirror.Checked)
-                        currentSensor.Mirroring = cb_mirror.Checked;
+                    if (!isSameDevice)
+                    {
+                        uTracker = NiTEWrapper.UserTracker.Create(currentDevice);
+                        hTracker = NiTEWrapper.HandTracker.Create(currentDevice);
+                        hTracker.StartGestureDetection(NiTEWrapper.GestureData.GestureType.HAND_RAISE);
+                        hTracker.onNewData += new NiTEWrapper.HandTracker.HandTrackerListener(NiTE_onNewData);
+                    }
                 }
-                catch (Exception ex)
-                {
-                    MessageBox.Show("Can not enable mirroring. " + ex.Message, "Sensor Config", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
-                }
+                catch (Exception) { }
+            }
             if (!HandleError(currentSensor.Start()))
             {
                 Stop(false);
@@ -355,6 +415,56 @@ namespace NiUI
             notify.Visible = true;
             return true;
         }
+
+        void NiTE_onNewData(NiTEWrapper.HandTracker handTracker)
+        {
+            try
+            {
+                if (uTracker != null && uTracker.isValid && hTracker != null && hTracker.isValid)
+                {
+
+                    using (NiTEWrapper.UserTrackerFrameRef userframe = uTracker.readFrame())
+                    {
+                        using (NiTEWrapper.HandTrackerFrameRef handframe = hTracker.readFrame())
+                        {
+                            foreach (NiTEWrapper.GestureData gesture in handframe.Gestures)
+                            {
+                                if (!gesture.isComplete)
+                                    continue;
+                                PointF handPos = hTracker.ConvertHandCoordinatesToDepth(gesture.CurrentPosition);
+                                short userId = System.Runtime.InteropServices.Marshal.ReadByte(userframe.UserMap.Pixels + (int)(handPos.Y * userframe.UserMap.DataStrideBytes) + (int)(handPos.X * 2));
+                                if (userId > 0)
+                                    ActiveUserId = userId;
+                            }
+                            handframe.Release();
+                        }
+                        if (ActiveUserId > 0)
+                        {
+                            NiTEWrapper.UserData user = userframe.getUserById(ActiveUserId);
+                            if (user.isValid && user.isVisible && user.CenterOfMass.Z > 0)
+                            {
+                                RectangleF ActivePosition = new RectangleF(0, 0, 0, 0);
+                                PointF botlocation = uTracker.ConvertJointCoordinatesToDepth(user.CenterOfMass);
+                                int pSize = (int)(Math.Max((int)((4700 - user.CenterOfMass.Z) * 0.08), 50) * ((float)userframe.UserMap.FrameSize.Height / 480));
+                                ActivePosition.Y = (int)botlocation.Y - pSize;
+                                ActivePosition.Height = pSize;
+                                ActivePosition.X = (int)botlocation.X;
+                                this.ActivePosition.X = ActivePosition.X / userframe.UserMap.FrameSize.Width;
+                                this.ActivePosition.Width = ActivePosition.Width / userframe.UserMap.FrameSize.Width;
+                                this.ActivePosition.Y = ActivePosition.Y / userframe.UserMap.FrameSize.Height;
+                                this.ActivePosition.Height = ActivePosition.Height / userframe.UserMap.FrameSize.Height;
+                                userframe.Release();
+                                return;
+                            }
+                        }
+                        userframe.Release();
+                    }
+                }
+            }
+            catch (Exception) { }
+            ActiveUserId = 0;
+        }
+
         void OpenNI_onDeviceStateChanged(DeviceInfo Device, OpenNI.DeviceState state)
         {
             this.BeginInvoke((Action)delegate
@@ -370,7 +480,7 @@ namespace NiUI
                 UpdateDevicesList();
             });
         }
-
+        Rectangle currentCropping = Rectangle.Empty;
         void currentSensor_onNewFrame(VideoStream vStream)
         {
             if (vStream.isValid && vStream.isFrameAvailable() && !isIdle)
@@ -390,6 +500,51 @@ namespace NiUI
                                 bitmap = frame.toBitmap(renderOptions);
                             }
                         }
+                        Rectangle ActivePosition = new Rectangle(new Point(0, 0), bitmap.Size);
+                        if (currentCropping == Rectangle.Empty)
+                            currentCropping = ActivePosition;
+                        if (ActiveUserId > 0)
+                        {
+                            ActivePosition.X = (int)(this.ActivePosition.X * bitmap.Size.Width);
+                            ActivePosition.Width = (int)(this.ActivePosition.Width * bitmap.Size.Width);
+                            ActivePosition.Y = (int)(this.ActivePosition.Y * bitmap.Size.Height);
+                            ActivePosition.Height = (int)(this.ActivePosition.Height * bitmap.Size.Height);
+
+                            ActivePosition.Width = (int)(((Decimal)bitmap.Size.Width / bitmap.Size.Height) * ActivePosition.Height);
+                            ActivePosition.X -= (ActivePosition.Width / 2);
+
+                            ActivePosition.X = Math.Max(ActivePosition.X, 0);
+                            ActivePosition.X = Math.Min(ActivePosition.X, bitmap.Size.Width - ActivePosition.Width);
+                            ActivePosition.Y = Math.Max(ActivePosition.Y, 0);
+                            ActivePosition.Y = Math.Min(ActivePosition.Y, bitmap.Size.Height - ActivePosition.Height);
+                        }
+
+                        if (currentCropping != ActivePosition)
+                        {
+                            if(Math.Abs(ActivePosition.X - currentCropping.X) > 4)
+                                currentCropping.X += Math.Min(ActivePosition.X - currentCropping.X, bitmap.Size.Width / 80);
+                            if (Math.Abs(ActivePosition.Y - currentCropping.Y) > 4)
+                                currentCropping.Y += Math.Min(ActivePosition.Y - currentCropping.Y, bitmap.Size.Height / 80);
+                            if (Math.Abs(ActivePosition.Width - currentCropping.Width) > 2)
+                                currentCropping.Width += Math.Min(ActivePosition.Width - currentCropping.Width, bitmap.Size.Width / 40);
+                            if (Math.Abs(ActivePosition.Height - currentCropping.Height) > 2)
+                                currentCropping.Height += Math.Min(ActivePosition.Height - currentCropping.Height, bitmap.Size.Height / 40);
+                        }
+                        lock (bitmap)
+                        {
+                            if (currentCropping.Size != bitmap.Size)
+                            {
+                                using (Graphics g = Graphics.FromImage(bitmap))
+                                {
+                                    if (currentCropping != Rectangle.Empty)
+                                        g.DrawImage(bitmap, new Rectangle(new Point(0, 0), bitmap.Size), currentCropping, GraphicsUnit.Pixel);
+                                    g.Save();
+                                }
+                            }
+                            if (softMirror)
+                                bitmap.RotateFlip(RotateFlipType.RotateNoneFlipX);
+                        }
+
                         if (!isIdle)
                             broadcaster.SendBitmap(bitmap);
                         this.BeginInvoke((Action)delegate

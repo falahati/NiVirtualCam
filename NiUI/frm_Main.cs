@@ -52,6 +52,7 @@ namespace NiUI
         private void frm_Main_FormClosed(object sender, FormClosedEventArgs e)
         {
             OpenNI.Shutdown();
+            NiTEWrapper.NiTE.Shutdown();
         }
 
         private void timer_Tick(object sender, EventArgs e)
@@ -93,15 +94,9 @@ namespace NiUI
 
         private void frm_Main_Shown(object sender, EventArgs e)
         {
-            if (!isIdle)
-            {
-                if (IsAutoRun)
-                    this.Visible = false;
-            }
-        }
-
-        private void frm_Main_Load(object sender, EventArgs e)
-        {
+            lbl_wait.Dock = DockStyle.Fill;
+            this.Enabled = false;
+            Application.DoEvents();
             Init();
             if (isIdle && cb_device.SelectedIndex != -1 && cb_type.SelectedIndex != -1)
             {
@@ -111,6 +106,14 @@ namespace NiUI
                     halt_timer.Start();
                 }
             }
+            if (!isIdle)
+            {
+                if (IsAutoRun)
+                    this.Visible = false;
+            }
+            lbl_wait.Visible = false;
+            this.Enabled = true;
+            Application.DoEvents();
         }
     }
 }
