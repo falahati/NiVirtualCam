@@ -1,6 +1,6 @@
 SetCompressor /SOLID lzma
 !include "nsProcess.nsh"
-!define KRB_URL "http://go.microsoft.com/fwlink/?LinkId=265291"
+!define KRB_URL "http://download.microsoft.com/download/A/3/5/A35E3B22-BE74-40AF-A46B-229E071452C1/KinectRuntime-v1.7-Setup.exe"
 
 ;--------------------------------
 ;Include Modern UI
@@ -14,8 +14,8 @@ SetCompressor /SOLID lzma
 ;General
   !include "x64.nsh"
   ;Name and file
-  Name "NiVirtualCam for Windows v0.9.0.0"
-  OutFile "..\NiVirtualCam-Win-v0.9.exe"
+  Name "NiVirtualCam for Windows v0.9.5.0"
+  OutFile "..\NiVirtualCam-Win-v0.9.5.exe"
 
   ;Default installation folder
   InstallDir "$PROGRAMFILES\NiVirtualCam"
@@ -92,6 +92,14 @@ Section "Main Application" SecMain
   CreateDirectory "$INSTDIR\OpenNI2\Drivers"
   SetOutPath "$INSTDIR\OpenNI2\Drivers"
   File "..\Release\OpenNI2\Drivers\*"
+  
+  CreateDirectory "$INSTDIR\NiTE2"
+  SetOutPath "$INSTDIR\NiTE2"
+  File "..\Release\NiTE2\*"
+  
+  CreateDirectory "$INSTDIR\NiTE2\Data"
+  SetOutPath "$INSTDIR\NiTE2\Data"
+  File "..\Release\NiTE2\Data\*"
 
   ${If} ${RunningX64}
      CreateDirectory "$PROGRAMFILES64\Microsoft SDKs\Kinect\v1.6\Assemblies"
@@ -114,22 +122,22 @@ Section "Main Application" SecMain
   ${EndIf}
   ;Store installation folder
   WriteRegStr HKLM "Software\NiVirtualCam" "InstallDir" $INSTDIR
-  WriteRegStr HKLM "Software\NiVirtualCam" "Version" "0.9.0"
+  WriteRegStr HKLM "Software\NiVirtualCam" "Version" "0.9.5"
 
   CreateShortCut "$SMPROGRAMS\OpenNI Virtual Webcam.lnk" "$INSTDIR\NiUI.exe"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "OpenNI Virtual Webcam Server" '"$INSTDIR\NiUI.exe" /autoRun'
 
   ;Create uninstaller
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\NiVirtualCam 0.9 for Windows" "DisplayName" "OpenNI Virtual Webcam 0.9 for Windows (remove only)"
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\NiVirtualCam 0.9 for Windows" "UninstallString" "$INSTDIR\Uninstall NiVirtualCam.exe"
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\NiVirtualCam 0.9 for Windows" "Publisher" "Soroush Falahati (falahati.net)"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\NiVirtualCam 0.9.5 for Windows" "DisplayName" "OpenNI Virtual Webcam 0.9.5 for Windows (remove only)"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\NiVirtualCam 0.9.5 for Windows" "UninstallString" "$INSTDIR\Uninstall NiVirtualCam.exe"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\NiVirtualCam 0.9.5 for Windows" "Publisher" "Soroush Falahati (falahati.net)"
 
   WriteUninstaller "$INSTDIR\Uninstall NiVirtualCam.exe"
 
 
 SectionEnd
 Function GetKRB
-        StrCpy $2 "$TEMP\Kinect Runtime Binaries 1.6.exe"
+        StrCpy $2 "$TEMP\Kinect Runtime Binaries 1.7.exe"
         nsisdl::download /TIMEOUT=30000 ${KRB_URL} $2
         Pop $R0 ;Get the return value
                 StrCmp $R0 "success" +3 0
@@ -157,7 +165,7 @@ FunctionEnd
 
   ;Language strings
   LangString DESC_SecMain ${LANG_ENGLISH} "OpenNI Virtual Webcam (NiVirtualCam) along with Primesense Sensor and Asus Xtion Drivers."
-  LangString DESC_SecKinect ${LANG_ENGLISH} "Download and Install Microsoft Kinect Runtime 1.6 including Kinect for Windows and Kinect for Xbox Drivers."
+  LangString DESC_SecKinect ${LANG_ENGLISH} "Download and Install Microsoft Kinect Runtime 1.7 including Kinect for Windows and Kinect for Xbox Drivers."
 
   ;Assign language strings to sections
   !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
@@ -186,7 +194,7 @@ Section "Uninstall"
 
 
   DeleteRegKey /ifempty HKLM "Software\NiVirtualCam"
-  DeleteRegKey HKEY_LOCAL_MACHINE "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\NiVirtualCam 0.9 for Windows"
+  DeleteRegKey HKEY_LOCAL_MACHINE "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\NiVirtualCam 0.9.5 for Windows"
 SectionEnd
 Function un.onInit
 	SetRebootFlag true 
