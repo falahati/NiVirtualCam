@@ -13,7 +13,6 @@
   <ItemGroup>
     <ClCompile Include="Dll.cpp" />
     <ClCompile Include="NiVirtualCam.cpp" />
-    <ClCompile Include="Settings.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="NiVirtualCam.def" />
@@ -21,7 +20,6 @@
   <ItemGroup>
     <ClInclude Include="NiVirtualCam.h" />
     <ClInclude Include="resource.h" />
-    <ClInclude Include="Settings.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="NiVirtualCamFilter.rc" />
@@ -94,10 +92,11 @@
       <TargetMachine>MachineX86</TargetMachine>
     </Link>
     <PostBuildEvent>
-      <Command>regsvr32.exe "$(OutDir)/$(TargetName).dll"</Command>
+      <Command>regsvr32.exe /s "$(OutDir)$(TargetName).dll"</Command>
     </PostBuildEvent>
     <PreBuildEvent>
-      <Command>regsvr32.exe /u "$(OutDir)/$(TargetName).dll"</Command>
+      <Command>regsvr32.exe /u /s "$(OutDir)/$(TargetName).dll" 2&gt; nul
+EXIT 0</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -124,7 +123,8 @@
       <TargetMachine>MachineX86</TargetMachine>
     </Link>
     <PostBuildEvent>
-      <Command>"$(ProgramFiles)\NSIS\makensis.exe" "$(SolutionDir)\Setup\NiVirtualCam.nsi"</Command>
+      <Command>
+      </Command>
     </PostBuildEvent>
     <PreBuildEvent>
       <Command>

@@ -1,0 +1,7 @@
+.jar
+.jni.dll
+.jni.pdb
+.pdb
+.lib
+.exp
+.ilk
