@@ -18,7 +18,6 @@
 #include <dos.h>
 #include <math.h>
 #include "NiVirtualCam.h"
-#include "Settings.h"
 
 //Context g_context;
 //DepthGenerator g_depth;
@@ -109,7 +108,6 @@ HRESULT CKCamStream::QueryInterface(REFIID riid, void **ppv)
 //////////////////////////////////////////////////////////////////////////
 bool badRes = false;
 bool badServer = false;
-Settings *settings;
 HANDLE fileHandle = NULL;
 void* file;
 int frameWidth = 640;
@@ -119,8 +117,6 @@ int serverDown = 0;
 HRESULT CKCamStream::FillBuffer(IMediaSample *pms)
 {
 	// Init setting object
-	if (!settings)
-		settings = new Settings();
 	if (fileHandle == NULL){
 		fileHandle = OpenFileMapping(FILE_MAP_ALL_ACCESS, FALSE, L"OpenNiVirtualCamFrameData");
 		if (fileHandle == NULL){
@@ -181,33 +177,36 @@ HRESULT CKCamStream::FillBuffer(IMediaSample *pms)
     pms->GetPointer(&pData);
     lDataLen = pms->GetSize();
 	int deswidth, desheight = 0;
+	badRes = true;
 	if (lDataLen % (16 * 9 * 3) == 0)
 	{
 		// 16/9
-		badRes = false;
 		int desmainpl = sqrt((DOUBLE)(lDataLen/(16 * 9 * 3)));
 		deswidth = desmainpl * 16;
 		desheight = desmainpl * 9;
-
-	}else if (lDataLen % (11 * 9 * 3) == 0)
+		badRes = deswidth * desheight * 3 != lDataLen;
+	}
+	if (badRes && lDataLen % (11 * 9 * 3) == 0)
 	{
 		// 11/9
 		badRes = false;
 		int desmainpl = sqrt((DOUBLE)(lDataLen/(11 * 9 * 3)));
 		deswidth = desmainpl * 11;
 		desheight = desmainpl * 9;
-	}else if (lDataLen % (3 * 4 * 3) == 0)
+		badRes = deswidth * desheight * 3 != lDataLen;
+	}
+	if (badRes && lDataLen % (3 * 4 * 3) == 0)
 	{
 		// 3/4
 		badRes = false;
 		int desmainpl = sqrt((DOUBLE)(lDataLen/(3 * 4 * 3)));
 		deswidth = desmainpl * 4;
 		desheight = desmainpl * 3;
-	}else if (!badRes){
-		badRes = true;
+		badRes = deswidth * desheight * 3 != lDataLen;
+	}
+	if (badRes){
 		MessageBox(NULL, L"Bad parameter sent for resolution. Only resolutions with 3/4, 11/9 or 16/9 ratio are supported.", L"Bad Parameter", MB_ICONSTOP);
 	}
-
 	if (badServer || badRes || file == NULL)
 	{
 		b1u = (i1u==255 || i1u==0 ? !b1u : b1u);
@@ -243,11 +242,11 @@ HRESULT CKCamStream::FillBuffer(IMediaSample *pms)
 			(resizeFactor * frameWidth)) / 2;
 		int texture_y = (unsigned int)(desheight - 
 			(resizeFactor * frameHeight)) / 2;
+
 		for	(int y = 0;
 			y < (desheight - (2 * texture_y)); ++y)
 		{
-			int y2 = desheight - y;
-			char* texturePixel = (char*)pData + ((((y2 + texture_y) * deswidth) + texture_x) * 3);
+			char* texturePixel = (char*)pData + ((((((desheight - 1) - y) - texture_y) * deswidth) + texture_x) * 3);
 			for	(int x = 0;
 				x < (deswidth - (2 * texture_x));
 				++x, texturePixel += 3)
