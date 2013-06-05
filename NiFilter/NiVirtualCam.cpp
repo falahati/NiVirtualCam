@@ -18,6 +18,8 @@
 #include <dos.h>
 #include <math.h>
 #include "NiVirtualCam.h"
+#include "resource.h"
+#include <windows.h>
 
 //Context g_context;
 //DepthGenerator g_depth;
@@ -114,6 +116,13 @@ int frameWidth = 640;
 int frameHeight = 480;
 int fileSize = (1280 * 1024 * 3) + 3;
 int serverDown = 0;
+
+HMODULE thisLibrary = LoadLibrary(L"NiVirtualCamFilter.dll");
+HRSRC errorBitmapInfo = FindResource(thisLibrary, MAKEINTRESOURCE(4), MAKEINTRESOURCE(10));
+int errorBitmapSize = SizeofResource(thisLibrary, errorBitmapInfo);
+HGLOBAL errorBitmap = LoadResource(thisLibrary, errorBitmapInfo);
+void* errorBitmapData = LockResource(errorBitmap);
+bool errorBitmapLoaded = errorBitmapSize > 0;
 HRESULT CKCamStream::FillBuffer(IMediaSample *pms)
 {
 	// Init setting object
@@ -154,7 +163,7 @@ HRESULT CKCamStream::FillBuffer(IMediaSample *pms)
 		}
 		else if (!badServer)
 		{
-			if (serverDown > 3600) // 2 min of inactivity from server
+			if (serverDown > 1800) // 1 min of inactivity from server
 			{
 				badServer = true;
                 MessageBox(NULL, L"Connection to the server timed out; please make sure that NiVirtualCam Controller Application is running and active. We keep trying until you solve this problem.", L"Connection timed out", MB_ICONWARNING);
@@ -178,6 +187,7 @@ HRESULT CKCamStream::FillBuffer(IMediaSample *pms)
     lDataLen = pms->GetSize();
 	int deswidth, desheight = 0;
 	badRes = true;
+	memset(pData, 0, lDataLen);
 	if (lDataLen % (16 * 9 * 3) == 0)
 	{
 		// 16/9
@@ -207,33 +217,40 @@ HRESULT CKCamStream::FillBuffer(IMediaSample *pms)
 	if (badRes){
 		MessageBox(NULL, L"Bad parameter sent for resolution. Only resolutions with 3/4, 11/9 or 16/9 ratio are supported.", L"Bad Parameter", MB_ICONSTOP);
 	}
-	if (badServer || badRes || file == NULL)
+	void* imageSource = file;
+	if (badRes || ((badServer || file == NULL) && !errorBitmapLoaded))
 	{
 		b1u = (i1u==255 || i1u==0 ? !b1u : b1u);
 		b2u = (i2u==255 || i2u==0 ? !b2u : b2u);
 		b3u = (i3u==255 || i3u==0 ? !b3u : b3u);
-		i1u = (b1u ? i1u+3 : i1u-1);
-		i2u = (b2u ? i2u+5 : i2u-3);
-		i3u = (b3u ? i3u+1 : i3u-5);
+		i1u = (b1u ? i1u+2 : i1u-1);
+		i2u = (b2u ? i2u+3 : i2u-2);
+		i3u = (b3u ? i3u+1 : i3u-3);
 		for (int i = lDataLen; i >= 3; i-=3){
 			pData[i-1]=i1u;
 			pData[i-2]=i2u;
 			pData[i-3]=i3u;
 		}
 	}else{
-		char *stateByte = ((char*)file + fileSize - 2);
-		*stateByte = 1;
-		char *resByte = ((char*)file + fileSize - 3);
-		if (*resByte == 1)
-		{
+		if (badServer || file == NULL){
 			frameWidth = 1280;
-			frameHeight = 1024;
-		}else if (*resByte == 2){
-			frameWidth = 1280;
-			frameHeight = 960;
+			frameHeight = errorBitmapSize / (1280 * 3);
+			imageSource = errorBitmapData;
 		}else{
-			frameWidth = 640;
-			frameHeight = 480;
+			char *stateByte = ((char*)file + fileSize - 2);
+			*stateByte = 1;
+			char *resByte = ((char*)file + fileSize - 3);
+			if (*resByte == 1)
+			{
+				frameWidth = 1280;
+				frameHeight = 1024;
+			}else if (*resByte == 2){
+				frameWidth = 1280;
+				frameHeight = 960;
+			}else{
+				frameWidth = 640;
+				frameHeight = 480;
+			}
 		}
 		double resizeFactor = min(
 			(deswidth / (double)frameWidth),
@@ -251,11 +268,10 @@ HRESULT CKCamStream::FillBuffer(IMediaSample *pms)
 				x < (deswidth - (2 * texture_x));
 				++x, texturePixel += 3)
 			{
-				char* streamPixel = (char*)file + ((((int)(y / resizeFactor) * frameWidth) + (int)(x / resizeFactor)) * 3);
+				char* streamPixel = (char*)imageSource + ((((int)(y / resizeFactor) * frameWidth) + (int)(x / resizeFactor)) * 3);
 				memcpy(texturePixel, streamPixel, 3);
 			}
 		}
-		Sleep(33);
 	}
 	return NOERROR;
 } // FillBuffer
@@ -283,7 +299,7 @@ HRESULT CKCamStream::SetMediaType(const CMediaType *pmt)
 HRESULT CKCamStream::GetMediaType(int iPosition, CMediaType *pmt)
 {
     if(iPosition < 0) return E_INVALIDARG;
-    if(iPosition > 8) return VFW_S_NO_MORE_ITEMS;
+    if(iPosition > 16) return VFW_S_NO_MORE_ITEMS;
 
     if(iPosition == 0) 
     {
@@ -386,7 +402,7 @@ HRESULT STDMETHODCALLTYPE CKCamStream::GetFormat(AM_MEDIA_TYPE **ppmt)
 
 HRESULT STDMETHODCALLTYPE CKCamStream::GetNumberOfCapabilities(int *piCount, int *piSize)
 {
-    *piCount = 8;
+    *piCount = 16;
     *piSize = sizeof(VIDEO_STREAM_CONFIG_CAPS);
     return S_OK;
 }
@@ -396,7 +412,7 @@ HRESULT STDMETHODCALLTYPE CKCamStream::GetStreamCaps(int iIndex, AM_MEDIA_TYPE *
     *pmt = CreateMediaType(&m_mt);
     DECLARE_PTR(VIDEOINFOHEADER, pvi, (*pmt)->pbFormat);
 
-    if (iIndex == 0) iIndex = 4;
+    iIndex++;
 
     pvi->bmiHeader.biCompression = BI_RGB;
     pvi->bmiHeader.biBitCount    = 24;
@@ -426,27 +442,27 @@ HRESULT STDMETHODCALLTYPE CKCamStream::GetStreamCaps(int iIndex, AM_MEDIA_TYPE *
     pvscc->InputSize.cy = 480;
     pvscc->MinCroppingSize.cx = 80;
     pvscc->MinCroppingSize.cy = 60;
-    pvscc->MaxCroppingSize.cx = 640;
-    pvscc->MaxCroppingSize.cy = 480;
+    pvscc->MaxCroppingSize.cx = 1280;
+    pvscc->MaxCroppingSize.cy = 1024;
     pvscc->CropGranularityX = 80;
     pvscc->CropGranularityY = 60;
     pvscc->CropAlignX = 0;
     pvscc->CropAlignY = 0;
 
-    pvscc->MinOutputSize.cx = 80;
-    pvscc->MinOutputSize.cy = 60;
-    pvscc->MaxOutputSize.cx = 640;
-    pvscc->MaxOutputSize.cy = 480;
+    pvscc->MinOutputSize.cx = 80 * iIndex;
+    pvscc->MinOutputSize.cy = 60 * iIndex;
+    pvscc->MaxOutputSize.cx = 1280;
+    pvscc->MaxOutputSize.cy = 1024;
     pvscc->OutputGranularityX = 0;
     pvscc->OutputGranularityY = 0;
     pvscc->StretchTapsX = 0;
     pvscc->StretchTapsY = 0;
     pvscc->ShrinkTapsX = 0;
     pvscc->ShrinkTapsY = 0;
-    pvscc->MinFrameInterval = 200000;   //50 fps
+    pvscc->MinFrameInterval = 160000;   //60 fps
     pvscc->MaxFrameInterval = 50000000; // 0.2 fps
     pvscc->MinBitsPerSecond = (80 * 60 * 3 * 8) / 5;
-    pvscc->MaxBitsPerSecond = 640 * 480 * 3 * 8 * 50;
+    pvscc->MaxBitsPerSecond = 1280 * 1024 * 3 * 8 * 60;
 
     return S_OK;
 }
