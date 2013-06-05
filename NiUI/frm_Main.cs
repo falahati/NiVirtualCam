@@ -17,6 +17,7 @@ namespace NiUI
             InitializeComponent();
             this.Text += " v" + Application.ProductVersion.ToString();
             bitmap = new Bitmap(1, 1);
+            broadcaster = new BitmapBroadcaster();
         }
 
         private void cb_device_SelectedIndexChanged(object sender, EventArgs e)
@@ -29,6 +30,7 @@ namespace NiUI
             // Save Settings
             SaveSettings();
             // Apply Settings
+            broadcaster.SendBitmap(Properties.Resources.PleaseWait);
             Stop(true);
             halt_timer.Stop();
             if (Start())
@@ -36,6 +38,8 @@ namespace NiUI
                 iNoClient = 0;
                 halt_timer.Start();
             }
+            else
+                broadcaster.ClearScreen();
         }
 
         private void frm_Main_FormClosing(object sender, FormClosingEventArgs e)
@@ -69,11 +73,14 @@ namespace NiUI
         {
             if (isIdle)
             {
+                broadcaster.SendBitmap(Properties.Resources.PleaseWait);
                 if (Start())
                 {
                     iNoClient = 0;
                     halt_timer.Start();
                 }
+                else
+                    broadcaster.ClearScreen();
             }
             else
             {
@@ -97,6 +104,7 @@ namespace NiUI
             lbl_wait.Dock = DockStyle.Fill;
             this.Enabled = false;
             Application.DoEvents();
+            broadcaster.SendBitmap(Properties.Resources.PleaseWait);
             Init();
             if (isIdle && cb_device.SelectedIndex != -1 && cb_type.SelectedIndex != -1)
             {
@@ -105,7 +113,10 @@ namespace NiUI
                     iNoClient = 0;
                     halt_timer.Start();
                 }
-            }
+                else
+                    broadcaster.ClearScreen();
+            }else
+                broadcaster.ClearScreen();
             if (!isIdle)
             {
                 if (IsAutoRun)

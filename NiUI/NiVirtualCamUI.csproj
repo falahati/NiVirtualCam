@@ -123,6 +123,7 @@
     </Content>
     <Content Include="NiCAM.ico" />
     <Content Include="NiCAM_Notify.ico" />
+    <None Include="PleaseWait.bmp" />
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include=".NETFramework,Version=v4.0,Profile=Client">

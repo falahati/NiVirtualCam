@@ -27,6 +27,12 @@ namespace NiUI
                 throw new Exception("Only one server is allowed.");
         }
 
+        public bool ClearScreen()
+        {
+            Bitmap bi = new Bitmap(640, 480, System.Drawing.Imaging.PixelFormat.Format24bppRgb);
+            return SendBitmap(bi);
+        }
+
         public unsafe bool SendBitmap(Bitmap image)
         {
             lock (image)
