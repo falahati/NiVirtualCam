@@ -26,8 +26,10 @@ namespace NiUI
         bool softMirror = false;
         short ActiveUserId = 0;
         RectangleF ActivePosition = new RectangleF(0, 0, 0, 0);
+        Rectangle currentCropping = Rectangle.Empty;
         public bool IsAutoRun { get; set; }
-        private bool HandleError(OpenNI.Status status)
+
+        bool HandleError(OpenNI.Status status)
         {
             if (status == OpenNI.Status.OK)
                 return true;
@@ -35,7 +37,7 @@ namespace NiUI
             return false;
         }
 
-        private void UpdateDevicesList()
+        void UpdateDevicesList()
         {
             DeviceInfo[] devices = OpenNI.EnumerateDevices();
             cb_device.Items.Clear();
@@ -53,6 +55,7 @@ namespace NiUI
             if (cb_device.SelectedIndex == -1)
                 cb_device.SelectedIndex = 0;
         }
+
         void RegisterFilter()
         {
             string filterAddress = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName), "NiVirtualCamFilter.dll");
@@ -71,11 +74,11 @@ namespace NiUI
             }
             catch (Exception) { }
         }
+
         void Init()
         {
             try
             {
-                broadcaster = new BitmapBroadcaster();
                 HandleError(OpenNI.Initialize());
                 NiTEWrapper.NiTE.Initialize();
                 OpenNI.onDeviceConnected += new OpenNI.DeviceConnectionStateChanged(OpenNI_onDeviceConnectionStateChanged);
@@ -139,8 +142,13 @@ namespace NiUI
                     iNoClient = 0;
                     if (isIdle)
                     {
-                        isIdle = false;
-                        Start();
+                        broadcaster.SendBitmap(Properties.Resources.PleaseWait);
+                        if (Start())
+                        {
+                            isIdle = false;
+                        }
+                        else
+                            broadcaster.ClearScreen();
                     }
                 }
                 else
@@ -261,9 +269,8 @@ namespace NiUI
             btn_stopstart.Text = "Start Streaming";
             if (!isApply)
             {
-                Bitmap bi = new Bitmap(640, 480, System.Drawing.Imaging.PixelFormat.Format24bppRgb);
-                broadcaster.SendBitmap(bi);
-                pb_image.Image = new Bitmap(bi, pb_image.Size);
+                broadcaster.ClearScreen();
+                pb_image.Image = null;
                 pb_image.Refresh();
             }
             if (NiUI.Properties.Settings.Default.AutoNotification)
@@ -280,6 +287,24 @@ namespace NiUI
             }
             bool isSameDevice = currentDevice != null && currentDevice.isValid && currentDevice.DeviceInfo.URI == NiUI.Properties.Settings.Default.DeviceURI;
             bool isSameSensor = isSameDevice && currentSensor != null && currentSensor.isValid && currentSensor.SensorInfo.getSensorType() == (Device.SensorType)NiUI.Properties.Settings.Default.CameraType;
+            if (!isSameDevice)
+            {
+                if (NiUI.Properties.Settings.Default.DeviceURI == string.Empty)
+                {
+                    currentDevice = null;
+                    MessageBox.Show("Please select a device to open and then click Apply.", "Device Open", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return false;
+                }
+            }
+            if (!isSameSensor)
+            {
+                if (NiUI.Properties.Settings.Default.CameraType == -1)
+                {
+                    currentDevice = null;
+                    MessageBox.Show("Please select a sensor to open and then click Apply.", "Sensor Create", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return false;
+                }
+            }
             if (!isSameDevice)
             {
                 try
@@ -395,7 +420,7 @@ namespace NiUI
             {
                 try
                 {
-                    if (!isSameDevice)
+                    if (!isSameDevice || (uTracker == null || hTracker == null || !uTracker.isValid || !hTracker.isValid))
                     {
                         uTracker = NiTEWrapper.UserTracker.Create(currentDevice);
                         hTracker = NiTEWrapper.HandTracker.Create(currentDevice);
@@ -420,9 +445,8 @@ namespace NiUI
         {
             try
             {
-                if (uTracker != null && uTracker.isValid && hTracker != null && hTracker.isValid)
+                if (Properties.Settings.Default.SmartCam && uTracker != null && uTracker.isValid && hTracker != null && hTracker.isValid)
                 {
-
                     using (NiTEWrapper.UserTrackerFrameRef userframe = uTracker.readFrame())
                     {
                         using (NiTEWrapper.HandTrackerFrameRef handframe = hTracker.readFrame())
@@ -480,7 +504,7 @@ namespace NiUI
                 UpdateDevicesList();
             });
         }
-        Rectangle currentCropping = Rectangle.Empty;
+
         void currentSensor_onNewFrame(VideoStream vStream)
         {
             if (vStream.isValid && vStream.isFrameAvailable() && !isIdle)
@@ -503,32 +527,36 @@ namespace NiUI
                         Rectangle ActivePosition = new Rectangle(new Point(0, 0), bitmap.Size);
                         if (currentCropping == Rectangle.Empty)
                             currentCropping = ActivePosition;
-                        if (ActiveUserId > 0)
+                        if (Properties.Settings.Default.SmartCam)
                         {
-                            ActivePosition.X = (int)(this.ActivePosition.X * bitmap.Size.Width);
-                            ActivePosition.Width = (int)(this.ActivePosition.Width * bitmap.Size.Width);
-                            ActivePosition.Y = (int)(this.ActivePosition.Y * bitmap.Size.Height);
-                            ActivePosition.Height = (int)(this.ActivePosition.Height * bitmap.Size.Height);
+                            if (ActiveUserId > 0)
+                            {
+                                ActivePosition.X = (int)(this.ActivePosition.X * bitmap.Size.Width);
+                                ActivePosition.Width = (int)(this.ActivePosition.Width * bitmap.Size.Width);
+                                ActivePosition.Y = (int)(this.ActivePosition.Y * bitmap.Size.Height);
+                                ActivePosition.Height = (int)(this.ActivePosition.Height * bitmap.Size.Height);
 
-                            ActivePosition.Width = (int)(((Decimal)bitmap.Size.Width / bitmap.Size.Height) * ActivePosition.Height);
-                            ActivePosition.X -= (ActivePosition.Width / 2);
+                                ActivePosition.Width = (int)(((Decimal)bitmap.Size.Width / bitmap.Size.Height) * ActivePosition.Height);
+                                ActivePosition.X -= (ActivePosition.Width / 2);
 
-                            ActivePosition.X = Math.Max(ActivePosition.X, 0);
-                            ActivePosition.X = Math.Min(ActivePosition.X, bitmap.Size.Width - ActivePosition.Width);
-                            ActivePosition.Y = Math.Max(ActivePosition.Y, 0);
-                            ActivePosition.Y = Math.Min(ActivePosition.Y, bitmap.Size.Height - ActivePosition.Height);
+                                ActivePosition.X = Math.Max(ActivePosition.X, 0);
+                                ActivePosition.X = Math.Min(ActivePosition.X, bitmap.Size.Width - ActivePosition.Width);
+                                ActivePosition.Y = Math.Max(ActivePosition.Y, 0);
+                                ActivePosition.Y = Math.Min(ActivePosition.Y, bitmap.Size.Height - ActivePosition.Height);
+                            }
                         }
-
                         if (currentCropping != ActivePosition)
                         {
-                            if(Math.Abs(ActivePosition.X - currentCropping.X) > 4)
-                                currentCropping.X += Math.Min(ActivePosition.X - currentCropping.X, bitmap.Size.Width / 80);
-                            if (Math.Abs(ActivePosition.Y - currentCropping.Y) > 4)
-                                currentCropping.Y += Math.Min(ActivePosition.Y - currentCropping.Y, bitmap.Size.Height / 80);
-                            if (Math.Abs(ActivePosition.Width - currentCropping.Width) > 2)
-                                currentCropping.Width += Math.Min(ActivePosition.Width - currentCropping.Width, bitmap.Size.Width / 40);
-                            if (Math.Abs(ActivePosition.Height - currentCropping.Height) > 2)
-                                currentCropping.Height += Math.Min(ActivePosition.Height - currentCropping.Height, bitmap.Size.Height / 40);
+                            if (Math.Abs(ActivePosition.X - currentCropping.X) > 8 || Math.Abs(ActivePosition.Width - currentCropping.Width) > 5)
+                            {
+                                currentCropping.X += Math.Min(ActivePosition.X - currentCropping.X, bitmap.Size.Width / 50);
+                                currentCropping.Width += Math.Min(ActivePosition.Width - currentCropping.Width, bitmap.Size.Width / 25);
+                            }
+                            if (Math.Abs(ActivePosition.Y - currentCropping.Y) > 8 || Math.Abs(ActivePosition.Height - currentCropping.Height) > 5)
+                            {
+                                currentCropping.Y += Math.Min(ActivePosition.Y - currentCropping.Y, bitmap.Size.Height / 50);
+                                currentCropping.Height += Math.Min(ActivePosition.Height - currentCropping.Height, bitmap.Size.Height / 25);
+                            }
                         }
                         lock (bitmap)
                         {
