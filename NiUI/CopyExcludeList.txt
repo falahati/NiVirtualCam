@@ -1,3 +1,4 @@
+FeatureExtraction.ini
 .jar
 .jni.dll
 .jni.pdb
@@ -5,3 +6,7 @@
 .lib
 .exp
 .ilk
+.idx
+.lbd
+.Net.pdb
+.NiTE.Net.pdb

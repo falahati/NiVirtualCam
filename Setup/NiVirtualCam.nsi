@@ -97,10 +97,6 @@ Section "Main Application" SecMain
   SetOutPath "$INSTDIR\NiTE2"
   File "..\Release\NiTE2\*"
   
-  CreateDirectory "$INSTDIR\NiTE2\Data"
-  SetOutPath "$INSTDIR\NiTE2\Data"
-  File "..\Release\NiTE2\Data\*"
-
   ${If} ${RunningX64}
      CreateDirectory "$PROGRAMFILES64\Microsoft SDKs\Kinect\v1.6\Assemblies"
      CreateDirectory "$PROGRAMFILES32\Microsoft SDKs\Kinect\v1.6\Assemblies"
