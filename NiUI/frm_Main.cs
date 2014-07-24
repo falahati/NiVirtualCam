@@ -15,131 +15,151 @@
     along with this program.  If not, see [http://www.gnu.org/licenses/].
     */
 
-using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Text;
-using System.Windows.Forms;
-using OpenNIWrapper;
-
 namespace NiUI
 {
+    using System;
+    using System.Diagnostics;
+    using System.Drawing;
+    using System.Windows.Forms;
+
+    using NiTEWrapper;
+
+    using NiUI.Properties;
+
+    using OpenNIWrapper;
+
+    // ReSharper disable once InconsistentNaming
     public partial class frm_Main : Form
     {
-
         public frm_Main()
         {
-            InitializeComponent();
-            this.Text += " v" + Application.ProductVersion.ToString();
-            bitmap = new Bitmap(1, 1);
-            broadcaster = new BitmapBroadcaster();
+            this.InitializeComponent();
+            base.Text += string.Format(" v{0}", Application.ProductVersion);
+            this.bitmap = new Bitmap(1, 1);
+            this.broadcaster = new BitmapBroadcaster();
         }
 
-        private void cb_device_SelectedIndexChanged(object sender, EventArgs e)
+        private void DeviceSelectedIndexChanged(object sender, EventArgs e)
         {
-            DeviceChanged();
+            this.DeviceChanged();
         }
 
-        private void btn_apply_Click(object sender, EventArgs e)
+        private void ApplyClick(object sender, EventArgs e)
         {
             // Save Settings
-            SaveSettings();
+            this.SaveSettings();
             // Apply Settings
-            broadcaster.SendBitmap(Properties.Resources.PleaseWait);
-            Stop(true);
-            halt_timer.Stop();
-            if (Start())
+            this.broadcaster.SendBitmap(Resources.PleaseWait);
+            this.Stop(true);
+            this.halt_timer.Stop();
+            if (this.Start())
             {
-                iNoClient = 0;
-                halt_timer.Start();
+                this.iNoClient = 0;
+                this.halt_timer.Start();
             }
             else
-                broadcaster.ClearScreen();
+            {
+                this.broadcaster.ClearScreen();
+            }
         }
 
-        private void frm_Main_FormClosing(object sender, FormClosingEventArgs e)
+        private void FrmMainFormClosing(object sender, FormClosingEventArgs e)
         {
-            if (!halt_timer.Enabled)
+            if (!this.halt_timer.Enabled)
             {
-                e.Cancel = MessageBox.Show("Closing this form when you stopped streaming video to applications, will close this program completely. Are you sure?!", "Closing Warning", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != System.Windows.Forms.DialogResult.Yes;
+                e.Cancel =
+                    MessageBox.Show(
+                        @"Closing this form when you stopped streaming video to applications, will close this program completely. Are you sure?!",
+                        @"Closing Warning",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Question) != DialogResult.Yes;
                 return;
             }
             this.Visible = false;
             e.Cancel = true;
         }
 
-        private void frm_Main_FormClosed(object sender, FormClosedEventArgs e)
+        private void FrmMainFormClosed(object sender, FormClosedEventArgs e)
         {
             OpenNI.Shutdown();
-            NiTEWrapper.NiTE.Shutdown();
+            NiTE.Shutdown();
         }
 
-        private void timer_Tick(object sender, EventArgs e)
+        private void TimerTick(object sender, EventArgs e)
         {
-            IsNeedHalt();
+            this.IsNeedHalt();
         }
 
-        private void l_copyright_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
+        private void CopyrightLinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
         {
-            System.Diagnostics.Process.Start("http://falahati.net");
+            Process.Start("http://falahati.net");
         }
 
-        private void btn_stopstart_Click(object sender, EventArgs e)
+        private void StopStartClick(object sender, EventArgs e)
         {
-            if (isIdle)
+            if (this.isIdle)
             {
-                broadcaster.SendBitmap(Properties.Resources.PleaseWait);
-                if (Start())
+                this.broadcaster.SendBitmap(Resources.PleaseWait);
+                if (this.Start())
                 {
-                    iNoClient = 0;
-                    halt_timer.Start();
+                    this.iNoClient = 0;
+                    this.halt_timer.Start();
                 }
                 else
-                    broadcaster.ClearScreen();
+                {
+                    this.broadcaster.ClearScreen();
+                }
             }
             else
             {
-                Stop(false);
-                halt_timer.Stop();
+                this.Stop(false);
+                this.halt_timer.Stop();
             }
         }
 
-        private void notify_MouseDoubleClick(object sender, MouseEventArgs e)
+        private void NotifyMouseDoubleClick(object sender, MouseEventArgs e)
         {
-            if (e.Button == System.Windows.Forms.MouseButtons.Left)
+            if (e.Button == MouseButtons.Left)
             {
                 if (!this.Visible)
+                {
                     this.Visible = true;
+                }
                 this.Activate();
             }
         }
 
-        private void frm_Main_Shown(object sender, EventArgs e)
+        private void FrmMainShown(object sender, EventArgs e)
         {
-            lbl_wait.Dock = DockStyle.Fill;
+            this.lbl_wait.Dock = DockStyle.Fill;
             this.Enabled = false;
             Application.DoEvents();
-            broadcaster.SendBitmap(Properties.Resources.PleaseWait);
-            Init();
-            if (isIdle && cb_device.SelectedIndex != -1 && cb_type.SelectedIndex != -1)
+            this.broadcaster.SendBitmap(Resources.PleaseWait);
+            this.Init();
+            if (this.isIdle && this.cb_device.SelectedIndex != -1 && this.cb_type.SelectedIndex != -1)
             {
-                if (Start())
+                if (this.Start())
                 {
-                    iNoClient = 0;
-                    halt_timer.Start();
+                    this.iNoClient = 0;
+                    this.halt_timer.Start();
                 }
                 else
-                    broadcaster.ClearScreen();
-            }else
-                broadcaster.ClearScreen();
-            if (!isIdle)
-            {
-                if (IsAutoRun)
-                    this.Visible = false;
+                {
+                    this.broadcaster.ClearScreen();
+                }
             }
-            lbl_wait.Visible = false;
+            else
+            {
+                this.broadcaster.ClearScreen();
+            }
+            if (!this.isIdle)
+            {
+                if (this.IsAutoRun)
+                {
+                    this.Visible = false;
+                }
+            }
+            this.lbl_wait.Visible = false;
             this.Enabled = true;
             Application.DoEvents();
         }

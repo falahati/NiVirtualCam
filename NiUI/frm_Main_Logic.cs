@@ -15,310 +15,415 @@
     along with this program.  If not, see [http://www.gnu.org/licenses/].
     */
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Windows.Forms;
-using OpenNIWrapper;
-using System.Drawing;
-using System.Windows.Media.Media3D;
-using System.ComponentModel;
 using Vector2D = System.Windows.Vector;
 
 namespace NiUI
 {
+    using System;
+    using System.Diagnostics;
+    using System.Drawing;
+    using System.IO;
+    using System.Linq;
+    using System.Runtime.InteropServices;
+    using System.Windows.Forms;
+
+    using Microsoft.Win32;
+
+    using NiTEWrapper;
+
+    using NiUI.Properties;
+
+    using OpenNIWrapper;
+
+    // ReSharper disable once InconsistentNaming
     public partial class frm_Main
     {
-        VideoFrameRef.copyBitmapOptions renderOptions;
-        Device currentDevice;
-        VideoStream currentSensor;
-        Bitmap bitmap;
-        BitmapBroadcaster broadcaster;
-        NiTEWrapper.UserTracker uTracker;
-        NiTEWrapper.HandTracker hTracker;
-        bool isHD = false;
-        int iNoClient;
-        bool isIdle = true;
-        bool softMirror = false;
-        short ActiveUserId = 0;
-        RectangleF ActivePosition = new RectangleF(0, 0, 0, 0);
-        Rectangle currentCropping = Rectangle.Empty;
+        private readonly BitmapBroadcaster broadcaster;
+
+        private RectangleF activePosition = new RectangleF(0, 0, 0, 0);
+
+        private short activeUserId;
+
+        private Bitmap bitmap;
+
+        private Rectangle currentCropping = Rectangle.Empty;
+
+        private Device currentDevice;
+
+        private VideoStream currentSensor;
+
+        private HandTracker hTracker;
+
+        private int iNoClient;
+
+        private bool isHd;
+
+        private bool isIdle = true;
+
+        private VideoFrameRef.CopyBitmapOptions renderOptions;
+
+        private bool softMirror;
+
+        private UserTracker uTracker;
+
         public bool IsAutoRun { get; set; }
 
-        bool HandleError(OpenNI.Status status)
+        private static bool HandleError(OpenNI.Status status)
         {
-            if (status == OpenNI.Status.OK)
+            if (status == OpenNI.Status.Ok)
+            {
                 return true;
-            MessageBox.Show("Error: " + status.ToString() + " - " + OpenNI.LastError, "Error", MessageBoxButtons.OK, MessageBoxIcon.Asterisk);
+            }
+            MessageBox.Show(
+                string.Format("Error: {0} - {1}", status, OpenNI.LastError),
+                @"Error",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Asterisk);
             return false;
         }
 
-        void UpdateDevicesList()
+        private void UpdateDevicesList()
         {
             DeviceInfo[] devices = OpenNI.EnumerateDevices();
-            cb_device.Items.Clear();
+            this.cb_device.Items.Clear();
             if (devices.Length == 0)
-                cb_device.Items.Add("None");
-            bool inList = false;
-            for (int i = 0; i < devices.Length; i++)
             {
-                cb_device.Items.Add(devices[i]);
-                if (devices[i].URI == NiUI.Properties.Settings.Default.DeviceURI)
+                this.cb_device.Items.Add("None");
+            }
+            bool inList = false;
+            foreach (DeviceInfo device in devices)
+            {
+                this.cb_device.Items.Add(device);
+                if (device.Uri == Settings.Default.DeviceURI)
+                {
                     inList = true;
+                }
             }
             if (!inList)
-                NiUI.Properties.Settings.Default.DeviceURI = string.Empty;
-            if (cb_device.SelectedIndex == -1)
-                cb_device.SelectedIndex = 0;
+            {
+                Settings.Default.DeviceURI = string.Empty;
+            }
+            if (this.cb_device.SelectedIndex == -1)
+            {
+                this.cb_device.SelectedIndex = 0;
+            }
         }
 
-        void RegisterFilter()
+        private static void RegisterFilter()
         {
-            string filterAddress = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName), "NiVirtualCamFilter.dll");
-            if (!System.IO.File.Exists(filterAddress))
+            string filterAddress = Path.Combine(Environment.CurrentDirectory, "NiVirtualCamFilter.dll");
+            if (!File.Exists(filterAddress))
             {
-                MessageBox.Show("NiVirtualCamFilter.dll has not been found. Please reinstall this program.", "Fatal Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(
+                    @"NiVirtualCamFilter.dll has not been found. Please reinstall this program.",
+                    @"Fatal Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
                 Environment.Exit(1);
             }
             try
             {
-                System.Diagnostics.Process p = new System.Diagnostics.Process();
-                p.StartInfo = new System.Diagnostics.ProcessStartInfo(
-                    "regsvr32.exe", "/s \"" + filterAddress + "\"");
+                Process p = new Process
+                                {
+                                    StartInfo =
+                                        new ProcessStartInfo("regsvr32.exe", "/s \"" + filterAddress + "\"")
+                                };
                 p.Start();
                 p.WaitForExit();
             }
-            catch (Exception) { }
+            catch (Exception)
+            {
+            }
         }
 
-        void Init()
+        private void Init()
         {
             try
             {
                 HandleError(OpenNI.Initialize());
-                NiTEWrapper.NiTE.Initialize();
-                OpenNI.onDeviceConnected += new OpenNI.DeviceConnectionStateChanged(OpenNI_onDeviceConnectionStateChanged);
-                OpenNI.onDeviceDisconnected += new OpenNI.DeviceConnectionStateChanged(OpenNI_onDeviceConnectionStateChanged);
-                OpenNI.onDeviceStateChanged += new OpenNI.DeviceStateChanged(OpenNI_onDeviceStateChanged);
-                UpdateDevicesList();
-                notify.Visible = !NiUI.Properties.Settings.Default.AutoNotification;
-                ReadSettings();
+                NiTE.Initialize();
+                OpenNI.OnDeviceConnected += this.OpenNiOnDeviceConnectionStateChanged;
+                OpenNI.OnDeviceDisconnected += this.OpenNiOnDeviceConnectionStateChanged;
+                OpenNI.OnDeviceStateChanged += this.OpenNiOnDeviceStateChanged;
+                this.UpdateDevicesList();
+                this.notify.Visible = !Settings.Default.AutoNotification;
+                this.ReadSettings();
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Fatal Error: " + ex.Message, "Execution Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(
+                    string.Format("Fatal Error: {0}", ex.Message),
+                    @"Execution Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
                 Environment.Exit(1);
             }
         }
 
-        void DeviceChanged()
+        private void DeviceChanged()
         {
-            cb_type.Items.Clear();
-            gb_ir.Enabled = false;
-            gb_color.Enabled = false;
-            gb_depth.Enabled = false;
-            cb_smart.Enabled = false;
-            if (cb_device.SelectedItem != null && cb_device.SelectedItem is DeviceInfo)
+            this.cb_type.Items.Clear();
+            this.gb_ir.Enabled = false;
+            this.gb_color.Enabled = false;
+            this.gb_depth.Enabled = false;
+            this.cb_smart.Enabled = false;
+            DeviceInfo deviceInfo = this.cb_device.SelectedItem as DeviceInfo;
+            if (deviceInfo != null)
             {
-                Device newDevice;
-                bool isNewDevice = currentDevice == null || ((DeviceInfo)cb_device.SelectedItem).URI == currentDevice.DeviceInfo.URI;
+                bool isNewDevice = this.currentDevice == null || deviceInfo.Uri == this.currentDevice.DeviceInfo.Uri;
+                Device newDevice = isNewDevice ? deviceInfo.OpenDevice() : this.currentDevice;
+                if (newDevice.HasSensor(Device.SensorType.Color))
+                {
+                    this.cb_type.Items.Add("Color");
+                    this.gb_color.Enabled = true;
+                }
+                if (newDevice.HasSensor(Device.SensorType.Ir))
+                {
+                    this.cb_type.Items.Add("IR");
+                    this.gb_ir.Enabled = true;
+                }
+                if (newDevice.HasSensor(Device.SensorType.Depth))
+                {
+                    this.cb_type.Items.Add("Depth");
+                    this.gb_depth.Enabled = true;
+                    this.cb_smart.Enabled = true;
+                }
+                if (this.cb_type.Items.Count < 0)
+                {
+                    this.cb_type.SelectedIndex = 0;
+                }
                 if (isNewDevice)
-                    newDevice = ((DeviceInfo)cb_device.SelectedItem).OpenDevice();
-                else
-                    newDevice = currentDevice;
-                if (newDevice.hasSensor(Device.SensorType.COLOR))
                 {
-                    cb_type.Items.Add("Color");
-                    gb_color.Enabled = true;
-                }
-                if (newDevice.hasSensor(Device.SensorType.IR))
-                {
-                    cb_type.Items.Add("IR");
-                    gb_ir.Enabled = true;
-                }
-                if (newDevice.hasSensor(Device.SensorType.DEPTH))
-                {
-                    cb_type.Items.Add("Depth");
-                    gb_depth.Enabled = true;
-                    cb_smart.Enabled = true;
-                }
-                if (cb_type.Items.Count < 0)
-                    cb_type.SelectedIndex = 0;
-                if (isNewDevice)
                     newDevice.Close();
+                }
             }
         }
 
-        void IsNeedHalt()
+        private void IsNeedHalt()
         {
-            if (broadcaster != null)
+            if (this.broadcaster != null)
             {
-                if (broadcaster.hasClient || this.Visible)
+                if (this.broadcaster.HasClient || this.Visible)
                 {
-                    iNoClient = 0;
-                    if (isIdle)
+                    this.iNoClient = 0;
+                    if (this.isIdle)
                     {
-                        broadcaster.SendBitmap(Properties.Resources.PleaseWait);
-                        if (Start())
+                        this.broadcaster.SendBitmap(Resources.PleaseWait);
+                        if (this.Start())
                         {
-                            isIdle = false;
+                            this.isIdle = false;
                         }
                         else
-                            broadcaster.ClearScreen();
+                        {
+                            this.broadcaster.ClearScreen();
+                        }
                     }
                 }
                 else
                 {
-                    iNoClient++;
-                    if (iNoClient > 60 && !isIdle) // 1min of no data
+                    this.iNoClient++;
+                    if (this.iNoClient > 60 && !this.isIdle) // 1min of no data
                     {
-                        isIdle = true;
-                        Stop(false);
+                        this.isIdle = true;
+                        this.Stop(false);
                     }
                 }
             }
         }
 
-        void ReadSettings()
+        private void ReadSettings()
         {
-            cb_device.SelectedIndex = -1;
-            if (!NiUI.Properties.Settings.Default.DeviceURI.Equals(string.Empty))
+            this.cb_device.SelectedIndex = -1;
+            if (!Settings.Default.DeviceURI.Equals(string.Empty))
             {
-                foreach (object item in cb_device.Items)
+                foreach (object item in this.cb_device.Items)
                 {
-                    if (item is DeviceInfo && (item as DeviceInfo).URI.Equals(NiUI.Properties.Settings.Default.DeviceURI, StringComparison.CurrentCultureIgnoreCase))
-                        cb_device.SelectedItem = item;
-                }
-                DeviceChanged();
-                cb_type.SelectedIndex = -1;
-                if (NiUI.Properties.Settings.Default.CameraType != -1)
-                    foreach (object item in cb_type.Items)
+                    if (item is DeviceInfo
+                        && (item as DeviceInfo).Uri.Equals(
+                            Settings.Default.DeviceURI,
+                            StringComparison.CurrentCultureIgnoreCase))
                     {
-                        if (NiUI.Properties.Settings.Default.CameraType == 1 && item is string && (item as string).Equals("IR", StringComparison.CurrentCultureIgnoreCase))
-                            cb_type.SelectedItem = item;
-                        if (NiUI.Properties.Settings.Default.CameraType == 2 && item is string && (item as string).Equals("Color", StringComparison.CurrentCultureIgnoreCase))
-                            cb_type.SelectedItem = item;
-                        if (NiUI.Properties.Settings.Default.CameraType == 3 && item is string && (item as string).Equals("Depth", StringComparison.CurrentCultureIgnoreCase))
-                            cb_type.SelectedItem = item;
+                        this.cb_device.SelectedItem = item;
                     }
+                }
+                this.DeviceChanged();
+                this.cb_type.SelectedIndex = -1;
+                if (Settings.Default.CameraType != -1)
+                {
+                    foreach (object item in this.cb_type.Items)
+                    {
+                        if (Settings.Default.CameraType == 1 && item is string
+                            && (item as string).Equals("IR", StringComparison.CurrentCultureIgnoreCase))
+                        {
+                            this.cb_type.SelectedItem = item;
+                        }
+                        if (Settings.Default.CameraType == 2 && item is string
+                            && (item as string).Equals("Color", StringComparison.CurrentCultureIgnoreCase))
+                        {
+                            this.cb_type.SelectedItem = item;
+                        }
+                        if (Settings.Default.CameraType == 3 && item is string
+                            && (item as string).Equals("Depth", StringComparison.CurrentCultureIgnoreCase))
+                        {
+                            this.cb_type.SelectedItem = item;
+                        }
+                    }
+                }
             }
-            cb_notification.Checked = NiUI.Properties.Settings.Default.AutoNotification;
-            cb_hd.Checked = NiUI.Properties.Settings.Default.Color_HD;
-            cb_fill.Checked = NiUI.Properties.Settings.Default.Depth_Fill;
-            cb_equal.Checked = NiUI.Properties.Settings.Default.Depth_Histogram;
-            cb_invert.Checked = NiUI.Properties.Settings.Default.Depth_Invert;
-            cb_mirror.Checked = NiUI.Properties.Settings.Default.Mirroring;
-            cb_smart.Checked = NiUI.Properties.Settings.Default.SmartCam;
+            this.cb_notification.Checked = Settings.Default.AutoNotification;
+            this.cb_hd.Checked = Settings.Default.Color_HD;
+            this.cb_fill.Checked = Settings.Default.Depth_Fill;
+            this.cb_equal.Checked = Settings.Default.Depth_Histogram;
+            this.cb_invert.Checked = Settings.Default.Depth_Invert;
+            this.cb_mirror.Checked = Settings.Default.Mirroring;
+            this.cb_smart.Checked = Settings.Default.SmartCam;
             try
             {
-                if (Microsoft.Win32.Registry.CurrentUser.OpenSubKey("Software\\Microsoft\\Windows\\CurrentVersion\\Run").GetValue("OpenNI Virtual Webcam Server") != null)
-                    cb_startup.Checked = true;
+                RegistryKey registryKey =
+                    Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
+                if (registryKey != null && registryKey.GetValue("OpenNI Virtual Webcam Server") != null)
+                {
+                    this.cb_startup.Checked = true;
+                }
             }
-            catch (Exception) { }
+            catch (Exception)
+            {
+            }
         }
 
-        void SaveSettings()
+        private void SaveSettings()
         {
-            NiUI.Properties.Settings.Default.DeviceURI = "";
-            if (cb_device.SelectedItem != null && cb_device.SelectedItem is DeviceInfo && ((DeviceInfo)cb_device.SelectedItem).isValid)
-                NiUI.Properties.Settings.Default.DeviceURI = (cb_device.SelectedItem as DeviceInfo).URI;
-            NiUI.Properties.Settings.Default.CameraType = -1;
-            if (cb_type.SelectedItem != null && cb_type.SelectedItem is string)
+            Settings.Default.DeviceURI = "";
+            if (this.cb_device.SelectedItem is DeviceInfo && ((DeviceInfo)this.cb_device.SelectedItem).IsValid)
             {
-                switch ((string)cb_type.SelectedItem)
+                Settings.Default.DeviceURI = (this.cb_device.SelectedItem as DeviceInfo).Uri;
+            }
+            Settings.Default.CameraType = -1;
+            string selectedType = this.cb_type.SelectedItem as string;
+            if (selectedType != null)
+            {
+                switch (selectedType)
                 {
                     case "Color":
-                        NiUI.Properties.Settings.Default.CameraType = 2;
+                        Settings.Default.CameraType = 2;
                         break;
                     case "Depth":
-                        NiUI.Properties.Settings.Default.CameraType = 3;
+                        Settings.Default.CameraType = 3;
                         break;
                     case "IR":
-                        NiUI.Properties.Settings.Default.CameraType = 1;
+                        Settings.Default.CameraType = 1;
                         break;
                 }
             }
-            NiUI.Properties.Settings.Default.AutoNotification = cb_notification.Checked;
-            NiUI.Properties.Settings.Default.Color_HD = cb_hd.Checked;
-            NiUI.Properties.Settings.Default.Depth_Fill = cb_fill.Checked;
-            NiUI.Properties.Settings.Default.Depth_Histogram = cb_equal.Checked;
-            NiUI.Properties.Settings.Default.Depth_Invert = cb_invert.Checked;
-            NiUI.Properties.Settings.Default.Mirroring = cb_mirror.Checked;
-            NiUI.Properties.Settings.Default.SmartCam = cb_smart.Checked;
-            NiUI.Properties.Settings.Default.Save();
+            Settings.Default.AutoNotification = this.cb_notification.Checked;
+            Settings.Default.Color_HD = this.cb_hd.Checked;
+            Settings.Default.Depth_Fill = this.cb_fill.Checked;
+            Settings.Default.Depth_Histogram = this.cb_equal.Checked;
+            Settings.Default.Depth_Invert = this.cb_invert.Checked;
+            Settings.Default.Mirroring = this.cb_mirror.Checked;
+            Settings.Default.SmartCam = this.cb_smart.Checked;
+            Settings.Default.Save();
             try
             {
-                if (cb_startup.Checked)
-                    Microsoft.Win32.Registry.CurrentUser.OpenSubKey("Software\\Microsoft\\Windows\\CurrentVersion\\Run", true).SetValue("OpenNI Virtual Webcam Server", "\"" + System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName + "\" /autoRun");
-                else
-                    Microsoft.Win32.Registry.CurrentUser.OpenSubKey("Software\\Microsoft\\Windows\\CurrentVersion\\Run", true).DeleteValue("OpenNI Virtual Webcam Server");
+                RegistryKey registryKey =
+                    Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true);
+                if (registryKey != null)
+                {
+                    if (this.cb_startup.Checked)
+                    {
+                        registryKey.SetValue(
+                            "OpenNI Virtual Webcam Server",
+                            "\"" + Process.GetCurrentProcess().MainModule.FileName + "\" /autoRun");
+                    }
+                    else
+                    {
+                        registryKey.DeleteValue("OpenNI Virtual Webcam Server");
+                    }
+                }
             }
-            catch (Exception) { }
+            catch (Exception)
+            {
+            }
         }
 
-        void Stop(bool isApply)
+        private void Stop(bool isApply)
         {
-            bool isSameDevice = isApply && currentDevice != null && currentDevice.isValid && currentDevice.DeviceInfo.URI == NiUI.Properties.Settings.Default.DeviceURI;
-            bool isSameSensor = isApply && isSameDevice && currentSensor != null && currentSensor.isValid && currentSensor.SensorInfo.getSensorType() == (Device.SensorType)NiUI.Properties.Settings.Default.CameraType;
+            bool isSameDevice = isApply && this.currentDevice != null && this.currentDevice.IsValid
+                                && this.currentDevice.DeviceInfo.Uri == Settings.Default.DeviceURI;
+            bool isSameSensor = isApply && isSameDevice && this.currentSensor != null && this.currentSensor.IsValid
+                                && this.currentSensor.SensorInfo.GetSensorType()
+                                == (Device.SensorType)Settings.Default.CameraType;
             if (!isSameSensor)
             {
-                if (currentSensor != null && currentSensor.isValid)
+                if (this.currentSensor != null && this.currentSensor.IsValid)
                 {
-                    currentSensor.Stop();
-                    currentSensor.onNewFrame -= currentSensor_onNewFrame;
+                    this.currentSensor.Stop();
+                    this.currentSensor.OnNewFrame -= this.CurrentSensorOnNewFrame;
                 }
-                currentSensor = null;
+                this.currentSensor = null;
             }
             if (!isSameDevice)
             {
-                //if (uTracker != null && uTracker.isValid)
-                //    uTracker.Destroy();
-                //if (hTracker != null && hTracker.isValid)
-                //    hTracker.Destroy();
-                if (currentDevice != null && currentDevice.isValid)
-                    currentDevice.Close();
-                //hTracker = null;
-                //uTracker = null;
-                currentDevice = null;
+                if (this.currentDevice != null && this.currentDevice.IsValid)
+                {
+                    this.currentDevice.Close();
+                }
+                this.currentDevice = null;
             }
-            isIdle = true;
-            btn_stopstart.Text = "Start Streaming";
+            this.isIdle = true;
+            this.btn_stopstart.Text = @"Start Streaming";
             if (!isApply)
             {
-                broadcaster.ClearScreen();
-                pb_image.Image = null;
-                pb_image.Refresh();
+                this.broadcaster.ClearScreen();
+                this.pb_image.Image = null;
+                this.pb_image.Refresh();
             }
-            if (NiUI.Properties.Settings.Default.AutoNotification)
-                notify.Visible = false;
+            if (Settings.Default.AutoNotification)
+            {
+                this.notify.Visible = false;
+            }
         }
 
-        bool Start()
+        private bool Start()
         {
             RegisterFilter();
-            if (this.isIdle && broadcaster.hasServer())
+            if (this.isIdle && this.broadcaster.HasServer())
             {
-                MessageBox.Show("Only one server is allowed.", "Multi-Server", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(
+                    @"Only one server is allowed.",
+                    @"Multi-Server",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
                 return false;
             }
-            bool isSameDevice = currentDevice != null && currentDevice.isValid && currentDevice.DeviceInfo.URI == NiUI.Properties.Settings.Default.DeviceURI;
-            bool isSameSensor = isSameDevice && currentSensor != null && currentSensor.isValid && currentSensor.SensorInfo.getSensorType() == (Device.SensorType)NiUI.Properties.Settings.Default.CameraType;
+            bool isSameDevice = this.currentDevice != null && this.currentDevice.IsValid
+                                && this.currentDevice.DeviceInfo.Uri == Settings.Default.DeviceURI;
+            bool isSameSensor = isSameDevice && this.currentSensor != null && this.currentSensor.IsValid
+                                && this.currentSensor.SensorInfo.GetSensorType()
+                                == (Device.SensorType)Settings.Default.CameraType;
             if (!isSameDevice)
             {
-                if (NiUI.Properties.Settings.Default.DeviceURI == string.Empty)
+                if (Settings.Default.DeviceURI == string.Empty)
                 {
-                    currentDevice = null;
-                    MessageBox.Show("Please select a device to open and then click Apply.", "Device Open", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    this.currentDevice = null;
+                    MessageBox.Show(
+                        @"Please select a device to open and then click Apply.",
+                        @"Device Open",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
                     return false;
                 }
             }
             if (!isSameSensor)
             {
-                if (NiUI.Properties.Settings.Default.CameraType == -1)
+                if (Settings.Default.CameraType == -1)
                 {
-                    currentDevice = null;
-                    MessageBox.Show("Please select a sensor to open and then click Apply.", "Sensor Create", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    this.currentDevice = null;
+                    MessageBox.Show(
+                        @"Please select a sensor to open and then click Apply.",
+                        @"Sensor Create",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
                     return false;
                 }
             }
@@ -326,12 +431,16 @@ namespace NiUI
             {
                 try
                 {
-                    currentDevice = Device.Open(NiUI.Properties.Settings.Default.DeviceURI);
+                    this.currentDevice = Device.Open(Settings.Default.DeviceURI);
                 }
                 catch (Exception ex)
                 {
-                    currentDevice = null;
-                    MessageBox.Show("Can not open selected Device. " + ex.Message, "Device Open", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    this.currentDevice = null;
+                    MessageBox.Show(
+                        string.Format("Can not open selected Device. {0}", ex.Message),
+                        @"Device Open",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error);
                     return false;
                 }
             }
@@ -339,161 +448,237 @@ namespace NiUI
             {
                 try
                 {
-                    currentSensor = currentDevice.CreateVideoStream((Device.SensorType)NiUI.Properties.Settings.Default.CameraType);
-                    currentSensor.onNewFrame += currentSensor_onNewFrame;
+                    this.currentSensor =
+                        this.currentDevice.CreateVideoStream((Device.SensorType)Settings.Default.CameraType);
+                    this.currentSensor.OnNewFrame += this.CurrentSensorOnNewFrame;
                 }
                 catch (Exception ex)
                 {
-                    currentSensor = null;
-                    MessageBox.Show("Can not open selected Sensor from selected Device. " + ex.Message, "Sensor Create", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    this.currentSensor = null;
+                    MessageBox.Show(
+                        string.Format("Can not open selected Sensor from selected Device. {0}", ex.Message),
+                        @"Sensor Create",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error);
                     return false;
                 }
             }
             else
             {
-                currentSensor.Stop();
+                this.currentSensor.Stop();
             }
-            VideoMode[] vmodes = currentSensor.SensorInfo.getSupportedVideoModes();
+            VideoMode[] vmodes = this.currentSensor.SensorInfo.GetSupportedVideoModes().ToArray();
             VideoMode selectedVideoMode = null;
-            switch (currentSensor.SensorInfo.getSensorType())
+            switch (this.currentSensor.SensorInfo.GetSensorType())
             {
-                case Device.SensorType.COLOR:
-                    renderOptions = VideoFrameRef.copyBitmapOptions.Force24BitRGB;
-                    if (NiUI.Properties.Settings.Default.Color_HD)
+                case Device.SensorType.Color:
+                    this.renderOptions = VideoFrameRef.CopyBitmapOptions.Force24BitRgb;
+                    if (Settings.Default.Color_HD)
                     {
                         foreach (VideoMode vm in vmodes)
-                            if (vm.Resolution.Width == 1280 && (vm.Resolution.Height == 960 || vm.Resolution.Height == 1024))
-                                if ((selectedVideoMode == null || (selectedVideoMode.FPS < vm.FPS && vm.DataPixelFormat < selectedVideoMode.DataPixelFormat)) &&
-                                    vm.DataPixelFormat != VideoMode.PixelFormat.JPEG && vm.DataPixelFormat != VideoMode.PixelFormat.YUV422)
+                        {
+                            if (vm.Resolution.Width == 1280
+                                && (vm.Resolution.Height == 960 || vm.Resolution.Height == 1024))
+                            {
+                                if ((selectedVideoMode == null
+                                     || (selectedVideoMode.Fps < vm.Fps
+                                         && vm.DataPixelFormat < selectedVideoMode.DataPixelFormat))
+                                    && vm.DataPixelFormat != VideoMode.PixelFormat.Jpeg
+                                    && vm.DataPixelFormat != VideoMode.PixelFormat.Yuv422)
+                                {
                                     selectedVideoMode = vm;
-                        isHD = selectedVideoMode != null;
-                        if (!isHD)
-                            MessageBox.Show("This device doesn't support ~1.3MP resolution.", "HD Resolution", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                                }
+                            }
+                        }
+                        this.isHd = selectedVideoMode != null;
+                        if (!this.isHd)
+                        {
+                            MessageBox.Show(
+                                @"This device doesn't support ~1.3MP resolution.",
+                                @"HD Resolution",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Warning);
+                        }
                     }
                     if (selectedVideoMode == null)
+                    {
                         foreach (VideoMode vm in vmodes)
+                        {
                             if (vm.Resolution == new Size(640, 480))
-                                if ((selectedVideoMode == null || (selectedVideoMode.FPS < vm.FPS && vm.DataPixelFormat < selectedVideoMode.DataPixelFormat)) &&
-                                    vm.DataPixelFormat != VideoMode.PixelFormat.JPEG && vm.DataPixelFormat != VideoMode.PixelFormat.YUV422)
+                            {
+                                if ((selectedVideoMode == null
+                                     || (selectedVideoMode.Fps < vm.Fps
+                                         && vm.DataPixelFormat < selectedVideoMode.DataPixelFormat))
+                                    && vm.DataPixelFormat != VideoMode.PixelFormat.Jpeg
+                                    && vm.DataPixelFormat != VideoMode.PixelFormat.Yuv422)
+                                {
                                     selectedVideoMode = vm;
+                                }
+                            }
+                        }
+                    }
                     break;
-                case Device.SensorType.DEPTH:
-                    renderOptions = VideoFrameRef.copyBitmapOptions.Force24BitRGB | VideoFrameRef.copyBitmapOptions.DepthFillShadow;
-                    if (NiUI.Properties.Settings.Default.Depth_Fill)
-                        if (cb_mirror.Enabled && cb_mirror.Checked)
-                            renderOptions |= VideoFrameRef.copyBitmapOptions.DepthFillRigthBlack;
+                case Device.SensorType.Depth:
+                    this.renderOptions = VideoFrameRef.CopyBitmapOptions.Force24BitRgb
+                                         | VideoFrameRef.CopyBitmapOptions.DepthFillShadow;
+                    if (Settings.Default.Depth_Fill)
+                    {
+                        if (this.cb_mirror.Enabled && this.cb_mirror.Checked)
+                        {
+                            this.renderOptions |= VideoFrameRef.CopyBitmapOptions.DepthFillRigthBlack;
+                        }
                         else
-                            renderOptions |= VideoFrameRef.copyBitmapOptions.DepthFillLeftBlack;
-                    if (NiUI.Properties.Settings.Default.Depth_Invert)
-                        renderOptions |= VideoFrameRef.copyBitmapOptions.DepthInvert;
-                    if (NiUI.Properties.Settings.Default.Depth_Histogram)
-                        renderOptions |= VideoFrameRef.copyBitmapOptions.DepthHistogramEqualize;
+                        {
+                            this.renderOptions |= VideoFrameRef.CopyBitmapOptions.DepthFillLeftBlack;
+                        }
+                    }
+                    if (Settings.Default.Depth_Invert)
+                    {
+                        this.renderOptions |= VideoFrameRef.CopyBitmapOptions.DepthInvert;
+                    }
+                    if (Settings.Default.Depth_Histogram)
+                    {
+                        this.renderOptions |= VideoFrameRef.CopyBitmapOptions.DepthHistogramEqualize;
+                    }
                     foreach (VideoMode vm in vmodes)
+                    {
                         if (vm.Resolution == new Size(640, 480))
-                            if ((selectedVideoMode == null || selectedVideoMode.FPS < vm.FPS) &&
-                                (vm.DataPixelFormat == VideoMode.PixelFormat.DEPTH_1MM || vm.DataPixelFormat == VideoMode.PixelFormat.DEPTH_100UM))
+                        {
+                            if ((selectedVideoMode == null || selectedVideoMode.Fps < vm.Fps)
+                                && (vm.DataPixelFormat == VideoMode.PixelFormat.Depth1Mm
+                                    || vm.DataPixelFormat == VideoMode.PixelFormat.Depth100Um))
+                            {
                                 selectedVideoMode = vm;
+                            }
+                        }
+                    }
                     break;
-                case Device.SensorType.IR:
-                    renderOptions = VideoFrameRef.copyBitmapOptions.Force24BitRGB;
+                case Device.SensorType.Ir:
+                    this.renderOptions = VideoFrameRef.CopyBitmapOptions.Force24BitRgb;
                     foreach (VideoMode vm in vmodes)
+                    {
                         if (vm.Resolution == new Size(640, 480))
-                            if ((selectedVideoMode == null || (selectedVideoMode.FPS < vm.FPS && vm.DataPixelFormat < selectedVideoMode.DataPixelFormat)) &&
-                                vm.DataPixelFormat != VideoMode.PixelFormat.JPEG && vm.DataPixelFormat != VideoMode.PixelFormat.YUV422)
+                        {
+                            if ((selectedVideoMode == null
+                                 || (selectedVideoMode.Fps < vm.Fps
+                                     && vm.DataPixelFormat < selectedVideoMode.DataPixelFormat))
+                                && vm.DataPixelFormat != VideoMode.PixelFormat.Jpeg
+                                && vm.DataPixelFormat != VideoMode.PixelFormat.Yuv422)
+                            {
                                 selectedVideoMode = vm;
-                    break;
-                default:
+                            }
+                        }
+                    }
                     break;
             }
 
             if (selectedVideoMode != null)
+            {
                 try
                 {
-                    if (currentSensor.VideoMode.FPS != selectedVideoMode.FPS || currentSensor.VideoMode.DataPixelFormat != selectedVideoMode.DataPixelFormat || currentSensor.VideoMode.Resolution != selectedVideoMode.Resolution)
-                        currentSensor.VideoMode = selectedVideoMode;
+                    if (this.currentSensor.VideoMode.Fps != selectedVideoMode.Fps
+                        || this.currentSensor.VideoMode.DataPixelFormat != selectedVideoMode.DataPixelFormat
+                        || this.currentSensor.VideoMode.Resolution != selectedVideoMode.Resolution)
+                    {
+                        this.currentSensor.VideoMode = selectedVideoMode;
+                    }
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show("Can not set active video mode to " + selectedVideoMode.ToString() + ". " + ex.Message, "Sensor Config", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show(
+                        string.Format("Can not set active video mode to {0}. {1}", selectedVideoMode, ex.Message),
+                        @"Sensor Config",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error);
                     return false;
                 }
+            }
             else
             {
-                MessageBox.Show("No acceptable video mode found.", "Sensor Config", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(
+                    @"No acceptable video mode found.",
+                    @"Sensor Config",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
                 return false;
             }
-            softMirror = NiUI.Properties.Settings.Default.Mirroring;
-            //if (NiUI.Properties.Settings.Default.Mirroring)
-                //try
-                //{
-                //    if (currentSensor.Mirroring != cb_mirror.Checked)
-                //        currentSensor.Mirroring = cb_mirror.Checked;
-                //}
-                //catch (Exception ex)
-                //{
-                //    MessageBox.Show("Can not enable mirroring. " + ex.Message, "Sensor Config", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
-                //}
-            if (NiUI.Properties.Settings.Default.SmartCam)
+            this.softMirror = Settings.Default.Mirroring;
+            if (Settings.Default.SmartCam)
             {
                 try
                 {
-                    if (!isSameDevice || (uTracker == null || hTracker == null || !uTracker.isValid || !hTracker.isValid))
+                    if (!isSameDevice
+                        || (this.uTracker == null || this.hTracker == null || !this.uTracker.IsValid
+                            || !this.hTracker.IsValid))
                     {
-                        uTracker = NiTEWrapper.UserTracker.Create(currentDevice);
-                        hTracker = NiTEWrapper.HandTracker.Create(currentDevice);
-                        hTracker.StartGestureDetection(NiTEWrapper.GestureData.GestureType.HAND_RAISE);
-                        hTracker.onNewData += new NiTEWrapper.HandTracker.HandTrackerListener(NiTE_onNewData);
+                        this.uTracker = UserTracker.Create(this.currentDevice);
+                        this.hTracker = HandTracker.Create(this.currentDevice);
+                        this.hTracker.StartGestureDetection(GestureData.GestureType.HandRaise);
+                        this.hTracker.OnNewData += this.NiTeOnNewData;
                     }
                 }
-                catch (Exception) { }
+                catch (Exception)
+                {
+                }
             }
-            if (!HandleError(currentSensor.Start()))
+            if (!HandleError(this.currentSensor.Start()))
             {
-                Stop(false);
+                this.Stop(false);
                 return false;
             }
-            btn_stopstart.Text = "Stop Streaming";
-            isIdle = false;
-            notify.Visible = true;
+            this.btn_stopstart.Text = @"Stop Streaming";
+            this.isIdle = false;
+            this.notify.Visible = true;
             return true;
         }
 
-        void NiTE_onNewData(NiTEWrapper.HandTracker handTracker)
+        private void NiTeOnNewData(HandTracker handTracker)
         {
             try
             {
-                if (Properties.Settings.Default.SmartCam && uTracker != null && uTracker.isValid && hTracker != null && hTracker.isValid)
+                if (Settings.Default.SmartCam && this.uTracker != null && this.uTracker.IsValid && this.hTracker != null
+                    && this.hTracker.IsValid)
                 {
-                    using (NiTEWrapper.UserTrackerFrameRef userframe = uTracker.readFrame())
+                    using (UserTrackerFrameRef userframe = this.uTracker.ReadFrame())
                     {
-                        using (NiTEWrapper.HandTrackerFrameRef handframe = hTracker.readFrame())
+                        using (HandTrackerFrameRef handframe = this.hTracker.ReadFrame())
                         {
-                            foreach (NiTEWrapper.GestureData gesture in handframe.Gestures)
+                            foreach (GestureData gesture in handframe.Gestures)
                             {
-                                if (!gesture.isComplete)
+                                if (!gesture.IsComplete)
+                                {
                                     continue;
-                                PointF handPos = hTracker.ConvertHandCoordinatesToDepth(gesture.CurrentPosition);
-                                short userId = System.Runtime.InteropServices.Marshal.ReadByte(userframe.UserMap.Pixels + (int)(handPos.Y * userframe.UserMap.DataStrideBytes) + (int)(handPos.X * 2));
+                                }
+                                PointF handPos = this.hTracker.ConvertHandCoordinatesToDepth(gesture.CurrentPosition);
+                                short userId =
+                                    Marshal.ReadByte(
+                                        userframe.UserMap.Pixels + (int)(handPos.Y * userframe.UserMap.DataStrideBytes)
+                                        + (int)(handPos.X * 2));
                                 if (userId > 0)
-                                    ActiveUserId = userId;
+                                {
+                                    this.activeUserId = userId;
+                                }
                             }
                             handframe.Release();
                         }
-                        if (ActiveUserId > 0)
+                        if (this.activeUserId > 0)
                         {
-                            NiTEWrapper.UserData user = userframe.getUserById(ActiveUserId);
-                            if (user.isValid && user.isVisible && user.CenterOfMass.Z > 0)
+                            UserData user = userframe.GetUserById(this.activeUserId);
+                            if (user.IsValid && user.IsVisible && user.CenterOfMass.Z > 0)
                             {
-                                RectangleF ActivePosition = new RectangleF(0, 0, 0, 0);
-                                PointF botlocation = uTracker.ConvertJointCoordinatesToDepth(user.CenterOfMass);
-                                int pSize = (int)(Math.Max((int)((4700 - user.CenterOfMass.Z) * 0.08), 50) * ((float)userframe.UserMap.FrameSize.Height / 480));
-                                ActivePosition.Y = (int)botlocation.Y - pSize;
-                                ActivePosition.Height = pSize;
-                                ActivePosition.X = (int)botlocation.X;
-                                this.ActivePosition.X = ActivePosition.X / userframe.UserMap.FrameSize.Width;
-                                this.ActivePosition.Width = ActivePosition.Width / userframe.UserMap.FrameSize.Width;
-                                this.ActivePosition.Y = ActivePosition.Y / userframe.UserMap.FrameSize.Height;
-                                this.ActivePosition.Height = ActivePosition.Height / userframe.UserMap.FrameSize.Height;
+                                RectangleF position = new RectangleF(0, 0, 0, 0);
+                                PointF botlocation = this.uTracker.ConvertJointCoordinatesToDepth(user.CenterOfMass);
+                                int pSize =
+                                    (int)
+                                    (Math.Max((int)((4700 - user.CenterOfMass.Z) * 0.08), 50)
+                                     * ((float)userframe.UserMap.FrameSize.Height / 480));
+                                position.Y = (int)botlocation.Y - pSize;
+                                position.Height = pSize;
+                                position.X = (int)botlocation.X;
+                                this.activePosition.X = position.X / userframe.UserMap.FrameSize.Width;
+                                this.activePosition.Width = position.Width / userframe.UserMap.FrameSize.Width;
+                                this.activePosition.Y = position.Y / userframe.UserMap.FrameSize.Height;
+                                this.activePosition.Height = position.Height / userframe.UserMap.FrameSize.Height;
                                 userframe.Release();
                                 return;
                             }
@@ -502,107 +687,131 @@ namespace NiUI
                     }
                 }
             }
-            catch (Exception) { }
-            ActiveUserId = 0;
+            catch (Exception)
+            {
+            }
+            this.activeUserId = 0;
         }
 
-        void OpenNI_onDeviceStateChanged(DeviceInfo Device, OpenNI.DeviceState state)
+        private void OpenNiOnDeviceStateChanged(DeviceInfo device, OpenNI.DeviceState state)
         {
-            this.BeginInvoke((Action)delegate
-            {
-                UpdateDevicesList();
-            });
+            this.BeginInvoke((Action)this.UpdateDevicesList);
         }
 
-        void OpenNI_onDeviceConnectionStateChanged(DeviceInfo Device)
+        private void OpenNiOnDeviceConnectionStateChanged(DeviceInfo device)
         {
-            this.BeginInvoke((Action)delegate
-            {
-                UpdateDevicesList();
-            });
+            this.BeginInvoke((Action)this.UpdateDevicesList);
         }
 
-        void currentSensor_onNewFrame(VideoStream vStream)
+        private void CurrentSensorOnNewFrame(VideoStream vStream)
         {
-            if (vStream.isValid && vStream.isFrameAvailable() && !isIdle)
+            if (vStream.IsValid && vStream.IsFrameAvailable() && !this.isIdle)
             {
-                using (VideoFrameRef frame = vStream.readFrame())
+                using (VideoFrameRef frame = vStream.ReadFrame())
                 {
-                    if (frame.isValid)
+                    if (frame.IsValid)
                     {
-                        lock (bitmap)
+                        lock (this.bitmap)
                         {
                             try
                             {
-                                frame.updateBitmap(bitmap, renderOptions);
+                                frame.UpdateBitmap(this.bitmap, this.renderOptions);
                             }
                             catch (Exception)
                             {
-                                bitmap = frame.toBitmap(renderOptions);
+                                this.bitmap = frame.ToBitmap(this.renderOptions);
                             }
                         }
-                        Rectangle ActivePosition = new Rectangle(new Point(0, 0), bitmap.Size);
-                        if (currentCropping == Rectangle.Empty)
-                            currentCropping = ActivePosition;
-                        if (Properties.Settings.Default.SmartCam)
+                        Rectangle position = new Rectangle(new Point(0, 0), this.bitmap.Size);
+                        if (this.currentCropping == Rectangle.Empty)
                         {
-                            if (ActiveUserId > 0)
+                            this.currentCropping = position;
+                        }
+                        if (Settings.Default.SmartCam)
+                        {
+                            if (this.activeUserId > 0)
                             {
-                                ActivePosition.X = (int)(this.ActivePosition.X * bitmap.Size.Width);
-                                ActivePosition.Width = (int)(this.ActivePosition.Width * bitmap.Size.Width);
-                                ActivePosition.Y = (int)(this.ActivePosition.Y * bitmap.Size.Height);
-                                ActivePosition.Height = (int)(this.ActivePosition.Height * bitmap.Size.Height);
+                                position.X = (int)(this.activePosition.X * this.bitmap.Size.Width);
+                                position.Width = (int)(this.activePosition.Width * this.bitmap.Size.Width);
+                                position.Y = (int)(this.activePosition.Y * this.bitmap.Size.Height);
+                                position.Height = (int)(this.activePosition.Height * this.bitmap.Size.Height);
 
-                                ActivePosition.Width = (int)(((Decimal)bitmap.Size.Width / bitmap.Size.Height) * ActivePosition.Height);
-                                ActivePosition.X -= (ActivePosition.Width / 2);
+                                position.Width =
+                                    (int)(((Decimal)this.bitmap.Size.Width / this.bitmap.Size.Height) * position.Height);
+                                position.X -= (position.Width / 2);
 
-                                ActivePosition.X = Math.Max(ActivePosition.X, 0);
-                                ActivePosition.X = Math.Min(ActivePosition.X, bitmap.Size.Width - ActivePosition.Width);
-                                ActivePosition.Y = Math.Max(ActivePosition.Y, 0);
-                                ActivePosition.Y = Math.Min(ActivePosition.Y, bitmap.Size.Height - ActivePosition.Height);
+                                position.X = Math.Max(position.X, 0);
+                                position.X = Math.Min(position.X, this.bitmap.Size.Width - position.Width);
+                                position.Y = Math.Max(position.Y, 0);
+                                position.Y = Math.Min(position.Y, this.bitmap.Size.Height - position.Height);
                             }
                         }
-                        if (currentCropping != ActivePosition)
+                        if (this.currentCropping != position)
                         {
-                            if (Math.Abs(ActivePosition.X - currentCropping.X) > 8 || Math.Abs(ActivePosition.Width - currentCropping.Width) > 5)
+                            if (Math.Abs(position.X - this.currentCropping.X) > 8
+                                || Math.Abs(position.Width - this.currentCropping.Width) > 5)
                             {
-                                currentCropping.X += Math.Min(ActivePosition.X - currentCropping.X, bitmap.Size.Width / 50);
-                                currentCropping.Width += Math.Min(ActivePosition.Width - currentCropping.Width, bitmap.Size.Width / 25);
+                                this.currentCropping.X += Math.Min(
+                                    position.X - this.currentCropping.X,
+                                    this.bitmap.Size.Width / 50);
+                                this.currentCropping.Width += Math.Min(
+                                    position.Width - this.currentCropping.Width,
+                                    this.bitmap.Size.Width / 25);
                             }
-                            if (Math.Abs(ActivePosition.Y - currentCropping.Y) > 8 || Math.Abs(ActivePosition.Height - currentCropping.Height) > 5)
+                            if (Math.Abs(position.Y - this.currentCropping.Y) > 8
+                                || Math.Abs(position.Height - this.currentCropping.Height) > 5)
                             {
-                                currentCropping.Y += Math.Min(ActivePosition.Y - currentCropping.Y, bitmap.Size.Height / 50);
-                                currentCropping.Height += Math.Min(ActivePosition.Height - currentCropping.Height, bitmap.Size.Height / 25);
+                                this.currentCropping.Y += Math.Min(
+                                    position.Y - this.currentCropping.Y,
+                                    this.bitmap.Size.Height / 50);
+                                this.currentCropping.Height += Math.Min(
+                                    position.Height - this.currentCropping.Height,
+                                    this.bitmap.Size.Height / 25);
                             }
                         }
-                        lock (bitmap)
+                        lock (this.bitmap)
                         {
-                            if (currentCropping.Size != bitmap.Size)
+                            if (this.currentCropping.Size != this.bitmap.Size)
                             {
-                                using (Graphics g = Graphics.FromImage(bitmap))
+                                using (Graphics g = Graphics.FromImage(this.bitmap))
                                 {
-                                    if (currentCropping != Rectangle.Empty)
-                                        g.DrawImage(bitmap, new Rectangle(new Point(0, 0), bitmap.Size), currentCropping, GraphicsUnit.Pixel);
+                                    if (this.currentCropping != Rectangle.Empty)
+                                    {
+                                        g.DrawImage(
+                                            this.bitmap,
+                                            new Rectangle(new Point(0, 0), this.bitmap.Size),
+                                            this.currentCropping,
+                                            GraphicsUnit.Pixel);
+                                    }
                                     g.Save();
                                 }
                             }
-                            if (softMirror)
-                                bitmap.RotateFlip(RotateFlipType.RotateNoneFlipX);
+                            if (this.softMirror)
+                            {
+                                this.bitmap.RotateFlip(RotateFlipType.RotateNoneFlipX);
+                            }
                         }
 
-                        if (!isIdle)
-                            broadcaster.SendBitmap(bitmap);
-                        this.BeginInvoke((Action)delegate
+                        if (!this.isIdle)
                         {
-                            if (!isIdle)
-                                lock (bitmap)
+                            this.broadcaster.SendBitmap(this.bitmap);
+                        }
+                        this.BeginInvoke(
+                            (Action)delegate
                                 {
-                                    if (pb_image.Image != null)
-                                        pb_image.Image.Dispose();
-                                    pb_image.Image = new Bitmap(bitmap, pb_image.Size);
-                                    pb_image.Refresh();
-                                }
-                        });
+                                    if (!this.isIdle)
+                                    {
+                                        lock (this.bitmap)
+                                        {
+                                            if (this.pb_image.Image != null)
+                                            {
+                                                this.pb_image.Image.Dispose();
+                                            }
+                                            this.pb_image.Image = new Bitmap(this.bitmap, this.pb_image.Size);
+                                            this.pb_image.Refresh();
+                                        }
+                                    }
+                                });
                     }
                 }
             }

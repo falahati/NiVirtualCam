@@ -199,6 +199,22 @@ HRESULT CKCamStream::FillBuffer(IMediaSample *pms)
 	int deswidth, desheight = 0;
 	badRes = true;
 	memset(pData, 0, lDataLen);
+	if (lDataLen % (21 * 9 * 3) == 0)
+	{
+		// 21/9
+		int desmainpl = sqrt((DOUBLE)(lDataLen/(21 * 9 * 3)));
+		deswidth = desmainpl * 21;
+		desheight = desmainpl * 9;
+		badRes = deswidth * desheight * 3 != lDataLen;
+	}
+	if (lDataLen % (16 * 10 * 3) == 0)
+	{
+		// 16/10
+		int desmainpl = sqrt((DOUBLE)(lDataLen/(16 * 10 * 3)));
+		deswidth = desmainpl * 16;
+		desheight = desmainpl * 10;
+		badRes = deswidth * desheight * 3 != lDataLen;
+	}
 	if (lDataLen % (16 * 9 * 3) == 0)
 	{
 		// 16/9
@@ -216,6 +232,15 @@ HRESULT CKCamStream::FillBuffer(IMediaSample *pms)
 		desheight = desmainpl * 9;
 		badRes = deswidth * desheight * 3 != lDataLen;
 	}
+	if (badRes && lDataLen % (5 * 4 * 3) == 0)
+	{
+		// 5/4
+		badRes = false;
+		int desmainpl = sqrt((DOUBLE)(lDataLen/(5 * 4 * 3)));
+		deswidth = desmainpl * 5;
+		desheight = desmainpl * 4;
+		badRes = deswidth * desheight * 3 != lDataLen;
+	}
 	if (badRes && lDataLen % (3 * 4 * 3) == 0)
 	{
 		// 3/4
@@ -226,7 +251,7 @@ HRESULT CKCamStream::FillBuffer(IMediaSample *pms)
 		badRes = deswidth * desheight * 3 != lDataLen;
 	}
 	if (badRes){
-		MessageBox(NULL, L"Bad parameter sent for resolution. Only resolutions with 3/4, 11/9 or 16/9 ratio are supported.", L"Bad Parameter", MB_ICONSTOP);
+		MessageBox(NULL, L"Bad parameter sent for resolution. Only resolutions with 21/9, 16/10, 16/9, 11/9, 5/4 or 3/4 ratio are supported.", L"Bad Parameter", MB_ICONSTOP);
 	}
 	void* imageSource = file;
 	if (badRes || ((badServer || file == NULL) && !errorBitmapLoaded))

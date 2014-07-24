@@ -62,12 +62,11 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Microsoft.VisualBasic" />
-    <Reference Include="NiWrapper.Net, Version=2.1.0.41, Culture=neutral, processorArchitecture=x86">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\NiWrapper\bin\x86_Release\NiWrapper.Net.dll</HintPath>
+    <Reference Include="NiWrapper.Net, Version=2.2.0.33, Culture=neutral, processorArchitecture=x86">
+      <HintPath>..\packages\NiWrapper.Net.x86.2.2.0.33\lib\NiWrapper.Net.dll</HintPath>
     </Reference>
-    <Reference Include="NiWrapper.NiTE.Net">
-      <HintPath>..\..\NiWrapper\bin\NiTE\x86_Release\NiWrapper.NiTE.Net.dll</HintPath>
+    <Reference Include="NiWrapper.NiTE.Net, Version=2.2.0.11, Culture=neutral, processorArchitecture=x86">
+      <HintPath>..\packages\NiWrapper.NiTE.Net.x86.2.2.0.11\lib\NiWrapper.NiTE.Net.dll</HintPath>
     </Reference>
     <Reference Include="PresentationCore" />
     <Reference Include="System" />
@@ -107,6 +106,7 @@
     </Compile>
     <None Include="app.config" />
     <EmbeddedResource Include="app.manifest" />
+    <None Include="packages.config" />
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>
@@ -156,6 +156,13 @@ if $(ConfigurationName) == Release (
 "$(ProgramFiles)\NSIS\makensis.exe" "$(SolutionDir)Setup\NiVirtualCam.nsi"
 )</PostBuildEvent>
   </PropertyGroup>
+  <Import Project="..\packages\Baseclass.Contrib.Nuget.Output.1.0.2\build\net40\Baseclass.Contrib.Nuget.Output.targets" Condition="Exists('..\packages\Baseclass.Contrib.Nuget.Output.1.0.2\build\net40\Baseclass.Contrib.Nuget.Output.targets')" />
+  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
+    <PropertyGroup>
+      <ErrorText>This project references NuGet package(s) that are missing on this computer. Enable NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
+    </PropertyGroup>
+    <Error Condition="!Exists('..\packages\Baseclass.Contrib.Nuget.Output.1.0.2\build\net40\Baseclass.Contrib.Nuget.Output.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Baseclass.Contrib.Nuget.Output.1.0.2\build\net40\Baseclass.Contrib.Nuget.Output.targets'))" />
+  </Target>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">

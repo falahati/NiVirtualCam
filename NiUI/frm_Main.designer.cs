@@ -80,7 +80,7 @@
             this.cb_device.Name = "cb_device";
             this.cb_device.Size = new System.Drawing.Size(151, 21);
             this.cb_device.TabIndex = 1;
-            this.cb_device.SelectedIndexChanged += new System.EventHandler(this.cb_device_SelectedIndexChanged);
+            this.cb_device.SelectedIndexChanged += new System.EventHandler(this.DeviceSelectedIndexChanged);
             // 
             // cb_type
             // 
@@ -108,7 +108,7 @@
             this.btn_apply.TabIndex = 10;
             this.btn_apply.Text = "Apply Settings";
             this.btn_apply.UseVisualStyleBackColor = true;
-            this.btn_apply.Click += new System.EventHandler(this.btn_apply_Click);
+            this.btn_apply.Click += new System.EventHandler(this.ApplyClick);
             // 
             // cb_fill
             // 
@@ -156,7 +156,7 @@
             // halt_timer
             // 
             this.halt_timer.Interval = 1000;
-            this.halt_timer.Tick += new System.EventHandler(this.timer_Tick);
+            this.halt_timer.Tick += new System.EventHandler(this.TimerTick);
             // 
             // gb_depth
             // 
@@ -280,7 +280,7 @@
             this.btn_stopstart.TabIndex = 9;
             this.btn_stopstart.Text = "Start Streaming";
             this.btn_stopstart.UseVisualStyleBackColor = true;
-            this.btn_stopstart.Click += new System.EventHandler(this.btn_stopstart_Click);
+            this.btn_stopstart.Click += new System.EventHandler(this.StopStartClick);
             // 
             // l_copyright
             // 
@@ -291,13 +291,13 @@
             this.l_copyright.TabIndex = 8;
             this.l_copyright.TabStop = true;
             this.l_copyright.Text = "By Soroush Falahati (Falahati.net)";
-            this.l_copyright.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.l_copyright_LinkClicked);
+            this.l_copyright.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.CopyrightLinkClicked);
             // 
             // notify
             // 
             this.notify.Icon = ((System.Drawing.Icon)(resources.GetObject("notify.Icon")));
             this.notify.Text = "OpenNI Virtual Webcam Controller";
-            this.notify.MouseDoubleClick += new System.Windows.Forms.MouseEventHandler(this.notify_MouseDoubleClick);
+            this.notify.MouseDoubleClick += new System.Windows.Forms.MouseEventHandler(this.NotifyMouseDoubleClick);
             // 
             // lbl_wait
             // 
@@ -337,9 +337,9 @@
             this.MinimizeBox = false;
             this.Name = "frm_Main";
             this.Text = "OpenNI Virtual Webcam (NiVirtualCam) Configurations";
-            this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.frm_Main_FormClosing);
-            this.FormClosed += new System.Windows.Forms.FormClosedEventHandler(this.frm_Main_FormClosed);
-            this.Shown += new System.EventHandler(this.frm_Main_Shown);
+            this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.FrmMainFormClosing);
+            this.FormClosed += new System.Windows.Forms.FormClosedEventHandler(this.FrmMainFormClosed);
+            this.Shown += new System.EventHandler(this.FrmMainShown);
             ((System.ComponentModel.ISupportInitialize)(this.pb_image)).EndInit();
             this.gb_depth.ResumeLayout(false);
             this.gb_depth.PerformLayout();

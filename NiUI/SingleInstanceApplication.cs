@@ -15,25 +15,23 @@
     along with this program.  If not, see [http://www.gnu.org/licenses/].
     */
 
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using Microsoft.VisualBasic.ApplicationServices;
-using System.Windows.Forms;
-
 namespace NiUI
 {
+    using System;
+    using System.Windows.Forms;
+
+    using Microsoft.VisualBasic.ApplicationServices;
+
     public class SingleInstanceApplication : WindowsFormsApplicationBase
     {
         private SingleInstanceApplication()
         {
-            base.IsSingleInstance = true;
+            this.IsSingleInstance = true;
         }
 
         public static void Run(Form f, StartupNextInstanceEventHandler startupHandler)
         {
-            SingleInstanceApplication app = new SingleInstanceApplication();
-            app.MainForm = f;
+            SingleInstanceApplication app = new SingleInstanceApplication { MainForm = f };
             app.StartupNextInstance += startupHandler;
             app.Run(Environment.GetCommandLineArgs());
         }
