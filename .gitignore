@@ -32,3 +32,5 @@ ipch
 !NiVirtualCam-Win-v*.exe
 packages
 packages/*
+*.exe
+*.zip
