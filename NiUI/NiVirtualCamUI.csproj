@@ -150,9 +150,7 @@
   <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
-    <PostBuildEvent>xcopy "$(SolutionDir)..\NiWrapper\bin\$(PlatformName)_$(ConfigurationName)\*" "$(ProjectDir)$(OutDir)" /y /s /e /i /d /r /exclude:CopyExcludelist.txt
-xcopy "$(SolutionDir)..\NiWrapper\bin\NiTE\$(PlatformName)_$(ConfigurationName)\*" "$(ProjectDir)$(OutDir)" /y /s /e /i /d /r /exclude:CopyExcludelist.txt
-if $(ConfigurationName) == Release (
+    <PostBuildEvent>if $(ConfigurationName) == Release (
 "$(ProgramFiles)\NSIS\makensis.exe" "$(SolutionDir)Setup\NiVirtualCam.nsi"
 )</PostBuildEvent>
   </PropertyGroup>
