@@ -1,5 +1,7 @@
 SetCompressor /SOLID lzma
 !include "nsProcess.nsh"
+!include "Locate.nsh"
+!include "x64.nsh"
 !define KRB_URL "http://download.microsoft.com/download/A/3/5/A35E3B22-BE74-40AF-A46B-229E071452C1/KinectRuntime-v1.7-Setup.exe"
 
 ;--------------------------------
@@ -43,6 +45,7 @@ SetCompressor /SOLID lzma
   !insertmacro MUI_PAGE_LICENSE "GPL.txt"
   !insertmacro MUI_PAGE_COMPONENTS
   !insertmacro MUI_PAGE_DIRECTORY
+  Page Custom ShowLockedFilesList
   !insertmacro MUI_PAGE_INSTFILES
     !define MUI_FINISHPAGE_RUN "$INSTDIR\NiUI.exe"
     !define MUI_FINISHPAGE_RUN_PARAMETERS " /autoRun"
@@ -50,9 +53,50 @@ SetCompressor /SOLID lzma
   !insertmacro MUI_PAGE_FINISH
 
   !insertmacro MUI_UNPAGE_CONFIRM
+  UninstPage Custom un.ShowLockedFilesList
   !insertmacro MUI_UNPAGE_INSTFILES
   !insertmacro MUI_UNPAGE_FINISH
 
+!macro MYMACRO un
+Function ${un}ShowLockedFilesList
+  ${If} ${RunningX64}
+    File /oname=$PLUGINSDIR\LockedList64.dll `${NSISDIR}\Plugins\LockedList64.dll`
+  ${EndIf}
+  !insertmacro MUI_HEADER_TEXT `Searching for locked files` `Free all locked files before proceeding by closing the applications listed below`
+  ${locate::Open} "$INSTDIR" `/F=1 /D=0 /M=*.* /B=1` $0
+    StrCmp $0 0 close
+    loop:
+    ${locate::Find} $0 $1 $2 $3 $4 $5 $6
+      StrCmp $1 '' close
+      LockedList::AddFile $1
+      goto loop
+    close:
+  ${locate::Close} $0
+
+  ${locate::Open} "$INSTDIR" `/F=1 /D=0 /X=exe|dll /M=*.* /B=1` $0
+    StrCmp $0 0 close2
+    loop2:
+    ${locate::Find} $0 $1 $2 $3 $4 $5 $6
+      StrCmp $1 '' close2
+      LockedList::AddModule $1
+      goto loop2
+    close2:
+  ${locate::Close} $0
+  ${locate::Unload}
+
+  ${nsProcess::FindProcess} "NiUI.exe" $R0
+  StrCmp $R0 0 0 noprocess
+     ${nsProcess::KillProcess} "NiUI.exe" $R0
+     Sleep 3000
+  noprocess:
+  ${nsProcess::Unload}
+
+  LockedList::Dialog /autonext
+  Pop $R0
+FunctionEnd
+!macroend
+!insertmacro MYMACRO ""
+!insertmacro MYMACRO "un."
 ;--------------------------------
 ;Languages
 
@@ -62,12 +106,6 @@ SetCompressor /SOLID lzma
 ;Installer Sections
 
 Section "Main Application" SecMain
-  ${nsProcess::FindProcess} "NiUI.exe" $R0
-  StrCmp $R0 0 0 +3
-     ${nsProcess::KillProcess} "NiUI.exe" $R0
-     Sleep 3000
-  ${nsProcess::Unload}
-
   SectionIn RO
   SetOutPath "$INSTDIR"
   File "GPL.txt"
@@ -95,7 +133,7 @@ Section "Main Application" SecMain
   
   CreateDirectory "$INSTDIR\NiTE2"
   SetOutPath "$INSTDIR\NiTE2"
-  File "..\Release\NiTE2\*"
+  File /x 'FeatureExtraction.ini' "..\Release\NiTE2\*"
   
   ${If} ${RunningX64}
      CreateDirectory "$PROGRAMFILES64\Microsoft SDKs\Kinect\v1.6\Assemblies"
@@ -173,12 +211,6 @@ FunctionEnd
 ;Uninstaller Section
 
 Section "Uninstall"
-  ${nsProcess::FindProcess} "NiUI.exe" $R0
-  StrCmp $R0 0 0 +3
-     ${nsProcess::KillProcess} "NiUI.exe" $R0
-     Sleep 3000
-  ${nsProcess::Unload}
-
   ${If} ${RunningX64}
      ExecWait '$WINDIR\SysWoW64\regsvr32.exe /s /u "$INSTDIR\NiVirtualCamFilter.dll"'
   ${Else}
