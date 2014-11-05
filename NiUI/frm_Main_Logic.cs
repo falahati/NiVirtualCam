@@ -721,56 +721,56 @@ namespace NiUI
                             {
                                 this.bitmap = frame.ToBitmap(this.renderOptions);
                             }
-                        }
-                        Rectangle position = new Rectangle(new Point(0, 0), this.bitmap.Size);
-                        if (this.currentCropping == Rectangle.Empty)
-                        {
-                            this.currentCropping = position;
-                        }
-                        if (Settings.Default.SmartCam)
-                        {
-                            if (this.activeUserId > 0)
-                            {
-                                position.X = (int)(this.activePosition.X * this.bitmap.Size.Width);
-                                position.Width = (int)(this.activePosition.Width * this.bitmap.Size.Width);
-                                position.Y = (int)(this.activePosition.Y * this.bitmap.Size.Height);
-                                position.Height = (int)(this.activePosition.Height * this.bitmap.Size.Height);
 
-                                position.Width =
-                                    (int)(((Decimal)this.bitmap.Size.Width / this.bitmap.Size.Height) * position.Height);
-                                position.X -= (position.Width / 2);
+                            Rectangle position = new Rectangle(new Point(0, 0), this.bitmap.Size);
+                            if (this.currentCropping == Rectangle.Empty)
+                            {
+                                this.currentCropping = position;
+                            }
+                            if (Settings.Default.SmartCam)
+                            {
+                                if (this.activeUserId > 0)
+                                {
+                                    position.X = (int)(this.activePosition.X * this.bitmap.Size.Width);
+                                    position.Width = (int)(this.activePosition.Width * this.bitmap.Size.Width);
+                                    position.Y = (int)(this.activePosition.Y * this.bitmap.Size.Height);
+                                    position.Height = (int)(this.activePosition.Height * this.bitmap.Size.Height);
 
-                                position.X = Math.Max(position.X, 0);
-                                position.X = Math.Min(position.X, this.bitmap.Size.Width - position.Width);
-                                position.Y = Math.Max(position.Y, 0);
-                                position.Y = Math.Min(position.Y, this.bitmap.Size.Height - position.Height);
+                                    position.Width =
+                                        (int)
+                                        (((Decimal)this.bitmap.Size.Width / this.bitmap.Size.Height) * position.Height);
+                                    position.X -= (position.Width / 2);
+
+                                    position.X = Math.Max(position.X, 0);
+                                    position.X = Math.Min(position.X, this.bitmap.Size.Width - position.Width);
+                                    position.Y = Math.Max(position.Y, 0);
+                                    position.Y = Math.Min(position.Y, this.bitmap.Size.Height - position.Height);
+                                }
                             }
-                        }
-                        if (this.currentCropping != position)
-                        {
-                            if (Math.Abs(position.X - this.currentCropping.X) > 8
-                                || Math.Abs(position.Width - this.currentCropping.Width) > 5)
+                            if (this.currentCropping != position)
                             {
-                                this.currentCropping.X += Math.Min(
-                                    position.X - this.currentCropping.X,
-                                    this.bitmap.Size.Width / 50);
-                                this.currentCropping.Width += Math.Min(
-                                    position.Width - this.currentCropping.Width,
-                                    this.bitmap.Size.Width / 25);
+                                if (Math.Abs(position.X - this.currentCropping.X) > 8
+                                    || Math.Abs(position.Width - this.currentCropping.Width) > 5)
+                                {
+                                    this.currentCropping.X += Math.Min(
+                                        position.X - this.currentCropping.X,
+                                        this.bitmap.Size.Width / 50);
+                                    this.currentCropping.Width += Math.Min(
+                                        position.Width - this.currentCropping.Width,
+                                        this.bitmap.Size.Width / 25);
+                                }
+                                if (Math.Abs(position.Y - this.currentCropping.Y) > 8
+                                    || Math.Abs(position.Height - this.currentCropping.Height) > 5)
+                                {
+                                    this.currentCropping.Y += Math.Min(
+                                        position.Y - this.currentCropping.Y,
+                                        this.bitmap.Size.Height / 50);
+                                    this.currentCropping.Height +=
+                                        Math.Min(
+                                            position.Height - this.currentCropping.Height,
+                                            this.bitmap.Size.Height / 25);
+                                }
                             }
-                            if (Math.Abs(position.Y - this.currentCropping.Y) > 8
-                                || Math.Abs(position.Height - this.currentCropping.Height) > 5)
-                            {
-                                this.currentCropping.Y += Math.Min(
-                                    position.Y - this.currentCropping.Y,
-                                    this.bitmap.Size.Height / 50);
-                                this.currentCropping.Height += Math.Min(
-                                    position.Height - this.currentCropping.Height,
-                                    this.bitmap.Size.Height / 25);
-                            }
-                        }
-                        lock (this.bitmap)
-                        {
                             if (this.currentCropping.Size != this.bitmap.Size)
                             {
                                 using (Graphics g = Graphics.FromImage(this.bitmap))
