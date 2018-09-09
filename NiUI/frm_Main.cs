@@ -15,68 +15,55 @@
     along with this program.  If not, see [http://www.gnu.org/licenses/].
     */
 
+using System;
+using System.Diagnostics;
+using System.Drawing;
+using System.Windows.Forms;
+using NiTEWrapper;
+using NiUI.Properties;
+using OpenNIWrapper;
+
 namespace NiUI
 {
-    using System;
-    using System.Diagnostics;
-    using System.Drawing;
-    using System.Windows.Forms;
-
-    using NiTEWrapper;
-
-    using NiUI.Properties;
-
-    using OpenNIWrapper;
-
     // ReSharper disable once InconsistentNaming
-    public partial class frm_Main : Form
+    public sealed partial class frm_Main : Form
     {
         public frm_Main()
         {
-            this.InitializeComponent();
-            base.Text += string.Format(" v{0}", Application.ProductVersion);
-            this.bitmap = new Bitmap(1, 1);
-            this.broadcaster = new BitmapBroadcaster();
-        }
-
-        private void DeviceSelectedIndexChanged(object sender, EventArgs e)
-        {
-            this.DeviceChanged();
+            InitializeComponent();
+            Text += string.Format(" v{0}", Application.ProductVersion);
+            _bitmap = new Bitmap(1, 1);
+            _broadcaster = new BitmapBroadcaster();
         }
 
         private void ApplyClick(object sender, EventArgs e)
         {
             // Save Settings
-            this.SaveSettings();
+            SaveSettings();
             // Apply Settings
-            this.broadcaster.SendBitmap(Resources.PleaseWait);
-            this.Stop(true);
-            this.halt_timer.Stop();
-            if (this.Start())
+            _broadcaster.SendBitmap(Resources.PleaseWait);
+            Stop(true);
+            halt_timer.Stop();
+
+            if (Start())
             {
-                this.iNoClient = 0;
-                this.halt_timer.Start();
+                _noClientTicker = 0;
+                halt_timer.Start();
             }
             else
             {
-                this.broadcaster.ClearScreen();
+                _broadcaster.ClearScreen();
             }
         }
 
-        private void FrmMainFormClosing(object sender, FormClosingEventArgs e)
+        private void CopyrightLinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
         {
-            if (!this.halt_timer.Enabled)
-            {
-                e.Cancel =
-                    MessageBox.Show(
-                        @"Closing this form when you stopped streaming video to applications, will close this program completely. Are you sure?!",
-                        @"Closing Warning",
-                        MessageBoxButtons.YesNo,
-                        MessageBoxIcon.Question) != DialogResult.Yes;
-                return;
-            }
-            this.Visible = false;
-            e.Cancel = true;
+            Process.Start("http://falahati.net");
+        }
+
+        private void DeviceSelectedIndexChanged(object sender, EventArgs e)
+        {
+            DeviceChanged();
         }
 
         private void FrmMainFormClosed(object sender, FormClosedEventArgs e)
@@ -85,83 +72,102 @@ namespace NiUI
             NiTE.Shutdown();
         }
 
-        private void TimerTick(object sender, EventArgs e)
+        private void FrmMainFormClosing(object sender, FormClosingEventArgs e)
         {
-            this.IsNeedHalt();
-        }
-
-        private void CopyrightLinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
-        {
-            Process.Start("http://falahati.net");
-        }
-
-        private void StopStartClick(object sender, EventArgs e)
-        {
-            if (this.isIdle)
+            if (!halt_timer.Enabled)
             {
-                this.broadcaster.SendBitmap(Resources.PleaseWait);
-                if (this.Start())
+                e.Cancel =
+                    MessageBox.Show(
+                        @"Closing this form when you stopped streaming video to applications, will close this program completely. Are you sure?!",
+                        @"Closing Warning",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Question) !=
+                    DialogResult.Yes;
+
+                return;
+            }
+
+            Visible = false;
+            e.Cancel = true;
+        }
+
+        private void FrmMainShown(object sender, EventArgs e)
+        {
+            lbl_wait.Dock = DockStyle.Fill;
+            Enabled = false;
+            Application.DoEvents();
+            _broadcaster.SendBitmap(Resources.PleaseWait);
+            Init();
+
+            if (_isIdle && cb_device.SelectedIndex != -1 && cb_type.SelectedIndex != -1)
+            {
+                if (Start())
                 {
-                    this.iNoClient = 0;
-                    this.halt_timer.Start();
+                    _noClientTicker = 0;
+                    halt_timer.Start();
                 }
                 else
                 {
-                    this.broadcaster.ClearScreen();
+                    _broadcaster.ClearScreen();
                 }
             }
             else
             {
-                this.Stop(false);
-                this.halt_timer.Stop();
+                _broadcaster.ClearScreen();
             }
+
+            if (!_isIdle)
+            {
+                if (IsAutoRun)
+                {
+                    Visible = false;
+                }
+            }
+
+            lbl_wait.Visible = false;
+            Enabled = true;
+            Application.DoEvents();
         }
 
         private void NotifyMouseDoubleClick(object sender, MouseEventArgs e)
         {
             if (e.Button == MouseButtons.Left)
             {
-                if (!this.Visible)
+                if (!Visible)
                 {
-                    this.Visible = true;
+                    Visible = true;
                 }
-                this.Activate();
+
+                Activate();
             }
         }
 
-        private void FrmMainShown(object sender, EventArgs e)
+        private void StopStartClick(object sender, EventArgs e)
         {
-            this.lbl_wait.Dock = DockStyle.Fill;
-            this.Enabled = false;
-            Application.DoEvents();
-            this.broadcaster.SendBitmap(Resources.PleaseWait);
-            this.Init();
-            if (this.isIdle && this.cb_device.SelectedIndex != -1 && this.cb_type.SelectedIndex != -1)
+            if (_isIdle)
             {
-                if (this.Start())
+                _broadcaster.SendBitmap(Resources.PleaseWait);
+
+                if (Start())
                 {
-                    this.iNoClient = 0;
-                    this.halt_timer.Start();
+                    _noClientTicker = 0;
+                    halt_timer.Start();
                 }
                 else
                 {
-                    this.broadcaster.ClearScreen();
+                    _broadcaster.ClearScreen();
                 }
             }
             else
             {
-                this.broadcaster.ClearScreen();
+                Stop(false);
+                halt_timer.Stop();
             }
-            if (!this.isIdle)
-            {
-                if (this.IsAutoRun)
-                {
-                    this.Visible = false;
-                }
-            }
-            this.lbl_wait.Visible = false;
-            this.Enabled = true;
-            Application.DoEvents();
+        }
+
+        private void TimerTick(object sender, EventArgs e)
+        {
+            DoesNeedHalt();
         }
     }
 }

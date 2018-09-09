@@ -1,6 +1,6 @@
 ﻿namespace NiUI
 {
-    partial class frm_Main
+    sealed partial class frm_Main
     {
         /// <summary>
         /// Required designer variable.

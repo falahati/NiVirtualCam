@@ -16,8 +16,8 @@ SetCompressor /SOLID lzma
 ;General
   !include "x64.nsh"
   ;Name and file
-  Name "NiVirtualCam for Windows v0.9.5.0"
-  OutFile "..\NiVirtualCam-Win-v0.9.5.exe"
+  Name "NiVirtualCam for Windows v0.9.6.0"
+  OutFile "..\NiVirtualCam-Win-v0.9.6.exe"
 
   ;Default installation folder
   InstallDir "$PROGRAMFILES\NiVirtualCam"
@@ -156,15 +156,15 @@ Section "Main Application" SecMain
   ${EndIf}
   ;Store installation folder
   WriteRegStr HKLM "Software\NiVirtualCam" "InstallDir" $INSTDIR
-  WriteRegStr HKLM "Software\NiVirtualCam" "Version" "0.9.5"
+  WriteRegStr HKLM "Software\NiVirtualCam" "Version" "0.9.6"
 
   CreateShortCut "$SMPROGRAMS\OpenNI Virtual Webcam.lnk" "$INSTDIR\NiUI.exe"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "OpenNI Virtual Webcam Server" '"$INSTDIR\NiUI.exe" /autoRun'
 
   ;Create uninstaller
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\NiVirtualCam 0.9.5 for Windows" "DisplayName" "OpenNI Virtual Webcam 0.9.5 for Windows (remove only)"
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\NiVirtualCam 0.9.5 for Windows" "UninstallString" "$INSTDIR\Uninstall NiVirtualCam.exe"
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\NiVirtualCam 0.9.5 for Windows" "Publisher" "Soroush Falahati (falahati.net)"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\NiVirtualCam for Windows" "DisplayName" "OpenNI Virtual Webcam 0.9.6 for Windows (remove only)"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\NiVirtualCam for Windows" "UninstallString" "$INSTDIR\Uninstall NiVirtualCam.exe"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\NiVirtualCam for Windows" "Publisher" "Soroush Falahati (falahati.net)"
 
   WriteUninstaller "$INSTDIR\Uninstall NiVirtualCam.exe"
 
@@ -222,7 +222,7 @@ Section "Uninstall"
 
 
   DeleteRegKey /ifempty HKLM "Software\NiVirtualCam"
-  DeleteRegKey HKEY_LOCAL_MACHINE "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\NiVirtualCam 0.9.5 for Windows"
+  DeleteRegKey HKEY_LOCAL_MACHINE "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\NiVirtualCam for Windows"
 SectionEnd
 Function un.onInit
 	SetRebootFlag true 

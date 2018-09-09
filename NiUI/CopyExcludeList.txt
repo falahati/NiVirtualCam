@@ -9,4 +9,4 @@ FeatureExtraction.ini
 .idx
 .lbd
 .Net.pdb
-.NiTE.Net.pdb
+_NiTE.Net.pdb

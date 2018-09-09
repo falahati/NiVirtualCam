@@ -15,35 +15,36 @@
     along with this program.  If not, see [http://www.gnu.org/licenses/].
     */
 
+using System;
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.IO.MemoryMappedFiles;
+using System.Runtime.InteropServices;
+using System.Threading;
+
 namespace NiUI
 {
-    using System;
-    using System.Drawing;
-    using System.Drawing.Imaging;
-    using System.IO.MemoryMappedFiles;
-    using System.Runtime.InteropServices;
-    using System.Threading;
-
     internal class BitmapBroadcaster
     {
-        private const int FileSize = (1280 * 1024 * 3) + 3;
+        private const int FileSize = 1280 * 1024 * 3 + 3;
 
-        private readonly MemoryMappedFile file;
+        private readonly MemoryMappedFile _file;
 
-        private readonly int lastChecked = Environment.TickCount;
+        private readonly int _lastChecked = Environment.TickCount;
 
-        private readonly MemoryMappedViewAccessor memoryAccessor;
+        private readonly MemoryMappedViewAccessor _memoryAccessor;
 
-        private bool? hasClient;
+        private bool? _hasClient;
 
         public BitmapBroadcaster()
         {
-            this.file = MemoryMappedFile.CreateOrOpen(
+            _file = MemoryMappedFile.CreateOrOpen(
                 "OpenNiVirtualCamFrameData",
                 FileSize,
                 MemoryMappedFileAccess.ReadWrite);
-            this.memoryAccessor = this.file.CreateViewAccessor(0, FileSize, MemoryMappedFileAccess.ReadWrite);
-            if (this.HasServer())
+            _memoryAccessor = _file.CreateViewAccessor(0, FileSize, MemoryMappedFileAccess.ReadWrite);
+
+            if (HasServer())
             {
                 throw new Exception("Only one server is allowed.");
             }
@@ -53,36 +54,62 @@ namespace NiUI
         {
             get
             {
-                if (this.file != null && this.memoryAccessor != null)
+                if (_file != null && _memoryAccessor != null)
                 {
-                    if (this.hasClient == null || Environment.TickCount - this.lastChecked > 2000)
+                    if (_hasClient == null || Environment.TickCount - _lastChecked > 2000)
                     {
-                        this.hasClient = this.memoryAccessor.ReadByte(FileSize - 2) == 1;
-                        this.memoryAccessor.Write(FileSize - 2, (byte)0);
+                        _hasClient = _memoryAccessor.ReadByte(FileSize - 2) == 1;
+                        _memoryAccessor.Write(FileSize - 2, (byte) 0);
                     }
-                    return this.hasClient.Value;
+
+                    return _hasClient.Value;
                 }
+
                 return false;
             }
         }
 
         [DllImport("msvcrt.dll", EntryPoint = "memcpy", CallingConvention = CallingConvention.Cdecl,
             SetLastError = false)]
-        public static extern IntPtr memcpy(IntPtr dest, IntPtr src, uint count);
+        public static extern IntPtr MemoryCopy(IntPtr destination, IntPtr src, uint count);
 
         public bool ClearScreen()
         {
-            Bitmap bi = new Bitmap(640, 480, PixelFormat.Format24bppRgb);
-            return this.SendBitmap(bi);
+            var bi = new Bitmap(640, 480, PixelFormat.Format24bppRgb);
+
+            return SendBitmap(bi);
+        }
+
+        public bool HasServer()
+        {
+            if (_file != null && _memoryAccessor != null)
+            {
+                _memoryAccessor.Write(FileSize - 1, (byte) 0);
+                var tried = 0;
+
+                while (tried < 10)
+                {
+                    if (_memoryAccessor.ReadByte(FileSize - 1) != 0)
+                    {
+                        return true;
+                    }
+
+                    Thread.Sleep(100);
+                    tried++;
+                }
+            }
+
+            return false;
         }
 
         public unsafe bool SendBitmap(Bitmap image)
         {
             lock (image)
             {
-                bool hd54 = image.Width == 1280 && image.Height == 1024;
-                bool hd43 = image.Width == 1280 && image.Height == 960;
-                int size = 640 * 480 * 3;
+                var hd54 = image.Width == 1280 && image.Height == 1024;
+                var hd43 = image.Width == 1280 && image.Height == 960;
+                var size = 640 * 480 * 3;
+
                 if (hd54)
                 {
                     size = 1280 * 1024 * 3;
@@ -91,57 +118,44 @@ namespace NiUI
                 {
                     size = 1280 * 960 * 3;
                 }
+
                 if (!(image.Width == 640 && image.Height == 480) && !hd54 && !hd43)
                 {
                     throw new ArgumentException("Bad image size");
                 }
+
                 if (image.PixelFormat != PixelFormat.Format24bppRgb)
                 {
                     throw new ArgumentException("Bad image format");
                 }
-                BitmapData bitData = image.LockBits(
+
+                var bitData = image.LockBits(
                     new Rectangle(new Point(0, 0), image.Size),
                     ImageLockMode.ReadOnly,
                     PixelFormat.Format24bppRgb);
-                this.memoryAccessor.Write(FileSize - 1, (byte)1);
+                _memoryAccessor.Write(FileSize - 1, (byte) 1);
+
                 if (hd54)
                 {
-                    this.memoryAccessor.Write(FileSize - 3, (byte)1);
+                    _memoryAccessor.Write(FileSize - 3, (byte) 1);
                 }
                 else if (hd43)
                 {
-                    this.memoryAccessor.Write(FileSize - 3, (byte)2);
+                    _memoryAccessor.Write(FileSize - 3, (byte) 2);
                 }
                 else
                 {
-                    this.memoryAccessor.Write(FileSize - 3, (byte)0);
+                    _memoryAccessor.Write(FileSize - 3, (byte) 0);
                 }
-                byte* memAddress = (byte*)0;
-                this.memoryAccessor.SafeMemoryMappedViewHandle.AcquirePointer(ref memAddress);
-                memcpy(new IntPtr(memAddress), bitData.Scan0, (uint)size);
-                this.memoryAccessor.SafeMemoryMappedViewHandle.ReleasePointer();
+
+                var memAddress = (byte*) 0;
+                _memoryAccessor.SafeMemoryMappedViewHandle.AcquirePointer(ref memAddress);
+                MemoryCopy(new IntPtr(memAddress), bitData.Scan0, (uint) size);
+                _memoryAccessor.SafeMemoryMappedViewHandle.ReleasePointer();
                 image.UnlockBits(bitData);
             }
-            return true;
-        }
 
-        public bool HasServer()
-        {
-            if (this.file != null && this.memoryAccessor != null)
-            {
-                this.memoryAccessor.Write(FileSize - 1, (byte)0);
-                int tried = 0;
-                while (tried < 10)
-                {
-                    if (this.memoryAccessor.ReadByte(FileSize - 1) != 0)
-                    {
-                        return true;
-                    }
-                    Thread.Sleep(100);
-                    tried++;
-                }
-            }
-            return false;
+            return true;
         }
     }
 }

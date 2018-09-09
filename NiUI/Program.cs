@@ -15,15 +15,14 @@
     along with this program.  If not, see [http://www.gnu.org/licenses/].
     */
 
+using System;
+using System.Diagnostics;
+using System.IO;
+using System.Windows.Forms;
+using Microsoft.VisualBasic.ApplicationServices;
+
 namespace NiUI
 {
-    using System;
-    using System.Diagnostics;
-    using System.IO;
-    using System.Windows.Forms;
-
-    using Microsoft.VisualBasic.ApplicationServices;
-
     internal static class Program
     {
         /// <summary>
@@ -34,46 +33,51 @@ namespace NiUI
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            frm_Main mainform = new frm_Main();
+            var mainForm = new frm_Main();
+
             if (Environment.CommandLine.ToLower().Contains("autoRun".ToLower()))
             {
-                string address = Path.GetDirectoryName(Application.ExecutablePath);
+                var address = Path.GetDirectoryName(Application.ExecutablePath);
+
                 if (address != null)
                 {
                     Process.Start(
                         new ProcessStartInfo(Application.ExecutablePath, "/auto_Corrected_Run")
-                            {
-                                WorkingDirectory =
-                                    address,
-                                UseShellExecute =
-                                    true
-                            });
+                        {
+                            WorkingDirectory =
+                                address,
+                            UseShellExecute =
+                                true
+                        });
                 }
+
                 Environment.Exit(0);
             }
+
             if (Environment.CommandLine.ToLower().Contains("auto_Corrected_Run".ToLower()))
             {
-                mainform.IsAutoRun = true;
+                mainForm.IsAutoRun = true;
             }
+
             try
             {
-                SingleInstanceApplication.Run(mainform, StartupNextInstanceHandler);
+                SingleInstanceApplication.Run(mainForm, StartupNextInstanceHandler);
             }
             catch (Exception)
             {
-                Application.Run(mainform);
+                Application.Run(mainForm);
             }
         }
 
         private static void StartupNextInstanceHandler(object sender, StartupNextInstanceEventArgs e)
         {
-            frm_Main form = Application.OpenForms[0] as frm_Main;
-            if (form != null)
+            if (Application.OpenForms[0] is frm_Main form)
             {
                 if (!form.Visible)
                 {
                     form.Visible = true;
                 }
+
                 form.Activate();
             }
         }
