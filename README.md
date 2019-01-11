@@ -1,5 +1,4 @@
-NiVirtualCam
-============
+## NiVirtualCam
 
 OpenNI 2 Virtual Webcam - Directshow Filter
 
@@ -14,11 +13,10 @@ Features:
 - Independent client and server design let streaming of data to all instances of our DirectShow filter within different applications. This also prevents cross access problems and minimizes any side effect of using OpenNI in host application like crashing and unrelated error messages.
 - Supporting 1.2MP and 1.3MP resolutions.
 
+## Donation
+[<img width="24" height="24" src="http://icons.iconarchive.com/icons/sonya/swarm/256/Coffee-icon.png"/>**Every coffee counts! :)**](https://www.coinpayments.net/index.php?cmd=_donate&reset=1&merchant=820707aded07845511b841f9c4c335cd&item_name=Donate&currency=USD&amountf=10.00000000&allow_amount=1&want_shipping=0&allow_extra=1)
 
-By Soroush Falahati --- Falahati.Net
-
-License
-============
+## License
 Copyright (C) 2013 Soroush Falahati - soroush@falahati.net
 
 This program is free software: you can redistribute it and/or modify
